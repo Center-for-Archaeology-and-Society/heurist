@@ -72,8 +72,11 @@ if [ -d "$EXT" ] && [ ! -f "$EXT/js/datatable/datatables.min.js" ]; then
 fi
 
 # 5. Permissions: Apache (www-data) must be able to write the filestore.
+#    The persistent filestore is normally prepared with the correct ownership.
+#    Repair only the mount root here: recursively walking a large filestore on
+#    every container restart leaves Apache unavailable for an extended period.
 #    NOTE: the codebase itself stays read-only (the bind mount keeps host
 #    ownership) - Heurist writes uploads/databases to HEURIST_FILESTORE and MySQL.
-chown -R www-data:www-data "$BASE/HEURIST_FILESTORE" 2>/dev/null || true
+chown www-data:www-data "$BASE/HEURIST_FILESTORE" 2>/dev/null || true
 
 exec "$@"
