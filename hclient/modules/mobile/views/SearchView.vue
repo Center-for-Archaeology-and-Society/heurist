@@ -291,7 +291,9 @@ onMounted(async () => {
       return
     }
   }
-  await fetchPage({ q: freeTextQuery(queryText.value), append: false })
+  // Route queries are already Heurist queries (for example a saved filter).
+  const q = typeof route.query.q === 'string' ? route.query.q : freeTextQuery(queryText.value)
+  await fetchPage({ q, append: false })
 })
 
 onBeforeUnmount(() => {

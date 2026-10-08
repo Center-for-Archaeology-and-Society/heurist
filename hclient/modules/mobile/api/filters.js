@@ -1,16 +1,16 @@
 import { apiRequest } from './client.js'
 
 export async function listFilters({ signal } = {}) {
-  const data = await apiRequest('sys/filter', { query: { limit: 200 }, signal })
-  const payload = data && data.data
+  const data = await apiRequest('sys/filter', { query: { limit: 200, fields: 'rec_OwnerUGrpID,query' }, signal })
+  const payload = (data && data.data) || data
   const rows = Array.isArray(payload)
     ? payload
     : (payload && Array.isArray(payload.records) ? payload.records : [])
   return rows.map((row) => ({
-    id: Number(row.svs_ID ?? row.id ?? 0),
-    name: row.svs_Name ?? row.name ?? '',
-    query: row.svs_Query ?? row.query ?? '',
-    ownerId: Number(row.svs_UGrpID ?? row.ownerId ?? 0),
+    id: Number(row.svs_ID ?? row.rec_ID ?? row.id ?? 0),
+    name: row.svs_Name ?? row.rec_Title ?? row.name ?? '',
+    query: row.svs_Query ?? row.details?.query?.[0]?.value ?? row.query ?? '',
+    ownerId: Number(row.svs_UGrpID ?? row.rec_OwnerUGrpID ?? row.ownerId ?? 0),
     raw: row
   }))
 }

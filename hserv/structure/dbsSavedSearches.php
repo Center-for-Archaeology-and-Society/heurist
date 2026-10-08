@@ -292,7 +292,7 @@
                 }
 
                 //svs_UGrpID is not defined
-                if(array_key_exists('svs_UGrpID', $record) && !($record['svs_UGrpID']>0)) //not defined or all|bookmark
+                if(!isset($record['svs_UGrpID']) || !($record['svs_UGrpID']>0)) //not defined or all|bookmark
                 {
                     if($is_new){
                         $record['svs_UGrpID'] = $system->getUserId();

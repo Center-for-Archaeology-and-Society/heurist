@@ -127,7 +127,7 @@ export async function queryRecords({ q, ids, detail = 'header', limit = 30, offs
 // Free-text search across all indexed fields; quotes in user input are stripped.
 export function freeTextQuery(text) {
   const value = String(text || '').trim().replace(/["*]/g, ' ').trim()
-  return value ? 'any:*"' + value + '"*' : ''
+  return value ? 'f:"' + value + '"' : ''
 }
 
 export function pointerValues(field, values) {

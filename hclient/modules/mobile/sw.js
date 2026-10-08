@@ -1,4 +1,4 @@
-const CACHE_NAME = 'heurist-mobile-v2'
+const CACHE_NAME = 'heurist-mobile-v3'
 const PRECACHE_URLS = ['./', './index.html', './manifest.json', './icons/icon.svg']
 
 self.addEventListener('install', (event) => {
@@ -25,6 +25,18 @@ self.addEventListener('fetch', (event) => {
     return
   }
   if (url.pathname.includes('/api/') || url.pathname.endsWith('.php')) {
+    return
+  }
+  // Fetch the entry page fresh so deployments load the current hashed bundle.
+  // Keep the cached shell as a fallback when the phone is offline.
+  if (request.mode === 'navigate') {
+    event.respondWith(fetch(request).then((response) => {
+      if (response.ok) {
+        const copy = response.clone()
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy))
+      }
+      return response
+    }).catch(() => caches.match(request)))
     return
   }
   event.respondWith(
