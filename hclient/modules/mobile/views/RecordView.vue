@@ -23,8 +23,18 @@
       >
         <button class="btn btn--secondary" type="button" @click="load">Retry</button>
       </EmptyState>
-      <template v-else-if="record">
-        <p class="rectype muted">{{ rectypeName }}</p>
+      <EmptyState
+        v-else-if="!record"
+        icon="∅"
+        title="Record not found"
+        message="It may have been deleted, or you may not have access to it."
+      >
+        <router-link class="btn btn--secondary" :to="{ name: 'search' }">Back to search</router-link>
+      </EmptyState>
+      <template v-else>
+        <p class="rectype muted">{{ rectypeName }} · #{{ recordId }}</p>
+        <h1 class="record-title">{{ record.title || 'Untitled record' }}</h1>
+
         <section
           v-for="group in fieldGroups"
           :key="group.id"
@@ -39,10 +49,11 @@
             <dt class="fieldrow__name muted">{{ field.name }}</dt>
             <dd class="fieldrow__value">
               <template v-if="field.type === 'resource'">
-                <template v-if="pointerValues(field).length">
+                <template v-if="pointersFor(field).length">
                   <router-link
-                    v-for="pointer in pointerValues(field)"
+                    v-for="pointer in pointersFor(field)"
                     :key="pointer.id"
+                    class="fieldrow__link"
                     :to="{ name: 'record', params: { id: String(pointer.id) } }"
                   >
                     {{ pointer.title || '#' + pointer.id }}
@@ -50,17 +61,58 @@
                 </template>
                 <span v-else class="muted">—</span>
               </template>
+              <template v-else-if="field.type === 'file'">
+                <template v-if="filesFor(field).length">
+                  <div v-for="(file, index) in filesFor(field)" :key="index" class="fileitem">
+                    <a
+                      v-if="file.image && file.thumb"
+                      :href="file.url"
+                      target="_blank"
+                      rel="noopener"
+                      class="fileitem__imagelink"
+                    >
+                      <img class="fileitem__image" :src="file.thumb" :alt="file.name" loading="lazy">
+                    </a>
+                    <a
+                      class="fieldrow__link fileitem__name"
+                      :href="file.url"
+                      target="_blank"
+                      rel="noopener"
+                    >{{ file.name || 'Open file' }}</a>
+                  </div>
+                </template>
+                <span v-else class="muted">—</span>
+              </template>
               <template v-else-if="field.type === 'geo'">
-                <span v-if="geoValues(field).length">{{ geoSummary(field) }}</span>
+                <span v-if="geoFor(field).length">{{ geoSummary(field) }}</span>
                 <span v-else class="muted">—</span>
               </template>
               <template v-else>
-                <span v-if="textValues(field).length">{{ textValues(field).join('; ') }}</span>
+                <template v-if="textsFor(field).length">
+                  <p
+                    v-for="(text, index) in textsFor(field)"
+                    :key="index"
+                    class="fieldrow__text"
+                  >
+                    <a
+                      v-if="isUrlText(text)"
+                      class="fieldrow__link"
+                      :href="text"
+                      target="_blank"
+                      rel="noopener"
+                    >{{ text }}</a>
+                    <template v-else>{{ text }}</template>
+                  </p>
+                </template>
                 <span v-else class="muted">—</span>
               </template>
             </dd>
           </dl>
         </section>
+
+        <p v-if="!fieldGroups.length" class="muted">
+          No field structure is available for this record type.
+        </p>
 
         <div class="record-actions">
           <router-link class="btn btn--secondary" :to="{ name: 'record-edit', params: { id: String(recordId) } }">
@@ -79,13 +131,21 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { getRecord, deleteRecord } from '../api/records.js'
+import { useRouter } from 'vue-router'
+import { apiRequest } from '../api/client.js'
+import { deleteRecord } from '../api/records.js'
 import { useDefinitions } from '../store/definitions.js'
 import { useAuth } from '../store/auth.js'
 import { useRecent } from '../store/recent.js'
-import { showError } from '../components/ErrorToast.vue'
-import { absoluteUrl } from '../api/client.js'
+import { showToast, showError } from '../components/ErrorToast.vue'
+import {
+  normalizeRecord,
+  pointerValues,
+  geoPoints,
+  fieldText,
+  isUrlText,
+  fileValue
+} from '../components/recordData.js'
 import PageHeader from '../components/PageHeader.vue'
 import EmptyState from '../components/EmptyState.vue'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
@@ -94,9 +154,9 @@ const props = defineProps({
   id: { type: String, required: true }
 })
 
-const route = useRoute()
 const router = useRouter()
 const definitions = useDefinitions()
+const auth = useAuth()
 const recent = useRecent()
 
 const record = ref(null)
@@ -105,103 +165,75 @@ const deleting = ref(false)
 const error = ref(null)
 
 const recordId = computed(() => Number(props.id))
-const recordTitle = computed(() => (record.value && (record.value.rec_Title || record.value.title)) || 'Record')
-const rectypeId = computed(() => record.value && (record.value.rec_RecTypeID ?? record.value.rectype))
+const recordTitle = computed(() => (record.value && record.value.title) || 'Record')
+const rectypeId = computed(() => (record.value ? record.value.rectypeId : null))
 const rectypeName = computed(() => (rectypeId.value ? definitions.rectypeName(rectypeId.value) : ''))
 
-function detailsOf(rec) {
-  if (!rec) {
-    return {}
-  }
-  if (rec.details && typeof rec.details === 'object') {
-    return rec.details
-  }
-  const out = {}
-  for (const [key, value] of Object.entries(rec)) {
-    if (/^dty_\d+$/.test(key) || /^\d+$/.test(key)) {
-      out[key.replace(/^dty_/, '')] = value
-    }
-  }
-  return out
-}
-
-const details = computed(() => detailsOf(record.value))
-
-const fieldGroups = computed(() => {
-  if (!rectypeId.value) {
+function detailValues(field) {
+  if (!record.value) {
     return []
   }
-  const fields = definitions.fieldsFor(rectypeId.value)
-  const present = fields.filter((field) => {
-    const values = details.value[String(field.dty)] ?? details.value[field.dty]
-    return values !== undefined && values !== null && (!Array.isArray(values) || values.length)
-  })
-  return [{
-    id: 'all',
-    name: rectypeName.value || 'Details',
-    fields: present
-  }]
-})
+  return record.value.details[String(field.dty)] || []
+}
+
+function fieldGroupsFor() {
+  const snapshot = definitions.state.snapshot
+  const fieldGroups = (snapshot && snapshot.fieldGroups) || {}
+  const fields = rectypeId.value ? definitions.fieldsFor(rectypeId.value) : []
+  const present = fields.filter((field) => detailValues(field).length)
+  const groups = new Map()
+  for (const field of present) {
+    const gid = field.group || 0
+    if (!groups.has(gid)) {
+      const definition = fieldGroups[String(gid)]
+      groups.set(gid, {
+        id: gid,
+        name: definition ? definition.name : 'Details',
+        order: definition && definition.order !== undefined ? definition.order : gid,
+        fields: []
+      })
+    }
+    groups.get(gid).fields.push(field)
+  }
+  return Array.from(groups.values()).sort((a, b) => a.order - b.order)
+}
+
+const fieldGroups = computed(fieldGroupsFor)
 
 const hasGeo = computed(() => fieldGroups.value.some((group) =>
-  group.fields.some((field) => field.type === 'geo' && geoValues(field).length)
+  group.fields.some((field) => field.type === 'geo' && geoFor(field).length)
 ))
 
-function rawValues(field) {
-  const values = details.value[String(field.dty)] ?? details.value[field.dty]
-  if (values === undefined || values === null) {
+function pointersFor(field) {
+  return pointerValues(field, detailValues(field))
+}
+
+function filesFor(field) {
+  if (field.type !== 'file') {
     return []
   }
-  return (Array.isArray(values) ? values : [values]).filter((value) => value !== null && value !== '')
+  return detailValues(field)
+    .map((value) => fileValue(auth.state.db, value && typeof value === 'object' ? value : {}))
+    .filter(Boolean)
 }
 
-function textValues(field) {
-  return rawValues(field).map((value) => {
-    if (typeof value === 'object') {
-      const text = value.text ?? value.label ?? value.title ?? value.value
-      if (text !== undefined && text !== null) {
-        return String(text)
-      }
-      if (value.URL || value.url) {
-        return absoluteUrl(value.URL || value.url)
-      }
-      return ''
-    }
-    return String(value)
-  }).filter(Boolean)
-}
-
-function pointerValues(field) {
-  if (field.type !== 'resource') {
-    return []
-  }
-  return rawValues(field).map((value) => {
-    if (typeof value === 'object') {
-      return { id: Number(value.id ?? value.recordID ?? value.ID ?? 0), title: value.title ?? value.label ?? '' }
-    }
-    return { id: Number(value), title: '' }
-  }).filter((value) => value.id > 0)
-}
-
-function geoValues(field) {
+function geoFor(field) {
   if (field.type !== 'geo') {
     return []
   }
-  return rawValues(field).map((value) => {
-    if (typeof value === 'object') {
-      const geo = value.geo || value
-      const lat = Number(value.lat ?? value.latitude ?? geo.lat ?? geo.latitude)
-      const lon = Number(value.lon ?? value.lng ?? value.longitude ?? geo.lon ?? geo.longitude)
-      if (Number.isFinite(lat) && Number.isFinite(lon)) {
-        return { lat, lon }
-      }
-    }
-    return null
-  }).filter(Boolean)
+  return geoPoints(detailValues(field))
 }
 
 function geoSummary(field) {
-  return geoValues(field).map((point) => point.lat.toFixed(5) + ', ' + point.lon.toFixed(5)).join('; ')
+  return geoFor(field)
+    .map((point) => point.lat.toFixed(5) + ', ' + point.lon.toFixed(5))
+    .join('; ')
+}
+
+function textsFor(field) {
+  return detailValues(field)
+    .map((value) => fieldText(field, value, definitions.termLabel))
+    .filter((text) => text !== '')
 }
 
 async function load() {
@@ -209,14 +241,21 @@ async function load() {
   error.value = null
   record.value = null
   try {
-    await definitions.load(useAuth().state.db)
-    record.value = await getRecord(recordId.value, { detail: 'detail' })
+    await definitions.load(auth.state.db)
+    const data = await apiRequest('records/' + encodeURIComponent(recordId.value), {
+      query: { detail: 'detail' }
+    })
+    const payload = data && data.data && typeof data.data === 'object' ? data.data : data
+    const rows = payload && Array.isArray(payload.records)
+      ? payload.records
+      : (payload && payload.rec_ID !== undefined ? [payload] : [])
+    record.value = normalizeRecord(rows[0], auth.state.db)
     if (record.value) {
       recent.addRecord({
-        id: recordId.value,
-        title: record.value.rec_Title,
-        rectypeId: record.value.rec_RecTypeID,
-        thumbnailUrl: record.value.rec_ThumbnailURL
+        id: record.value.id,
+        title: record.value.title,
+        rectypeId: record.value.rectypeId,
+        thumbnailUrl: record.value.thumbnailUrl
       })
     }
   } catch (err) {
@@ -233,6 +272,7 @@ async function confirmDelete() {
   deleting.value = true
   try {
     await deleteRecord(recordId.value)
+    showToast('Record deleted', { kind: 'success' })
     router.replace({ name: 'search' })
   } catch (err) {
     showError(err.message || 'Delete failed')
@@ -256,10 +296,16 @@ onMounted(load)
 
 <style scoped>
 .rectype {
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--space-1);
   font-size: var(--font-size-sm);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.record-title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-xl);
+  overflow-wrap: anywhere;
 }
 
 .fieldgroup {
@@ -275,7 +321,11 @@ onMounted(load)
 .fieldrow {
   display: flex;
   flex-direction: column;
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.fieldrow:last-child {
+  margin-bottom: 0;
 }
 
 .fieldrow__name {
@@ -285,6 +335,45 @@ onMounted(load)
 .fieldrow__value {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.fieldrow__text {
+  margin: 0 0 var(--space-1);
+}
+
+.fieldrow__text:last-child {
+  margin-bottom: 0;
+}
+
+.fieldrow__link {
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  overflow-wrap: anywhere;
+}
+
+.fileitem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.fileitem:last-child {
+  margin-bottom: 0;
+}
+
+.fileitem__imagelink {
+  display: block;
+  flex-shrink: 0;
+}
+
+.fileitem__image {
+  display: block;
+  max-width: 120px;
+  max-height: 120px;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
 }
 
 .record-actions {

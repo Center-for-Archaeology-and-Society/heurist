@@ -1,12 +1,16 @@
 <template>
   <transition name="fade">
-    <div v-if="visible" class="toast" role="alert">{{ message }}</div>
+    <div v-if="visible" class="toast" :class="'toast--' + kind" role="alert">{{ message }}</div>
   </transition>
 </template>
 
 <script>
+export function showToast(message, { timeout = 4000, kind = 'error' } = {}) {
+  window.dispatchEvent(new CustomEvent('mobile:toast', { detail: { message: String(message), timeout, kind } }))
+}
+
 export function showError(message, timeout = 4000) {
-  window.dispatchEvent(new CustomEvent('mobile:toast', { detail: { message: String(message), timeout } }))
+  showToast(message, { timeout, kind: 'error' })
 }
 </script>
 
@@ -14,11 +18,13 @@ export function showError(message, timeout = 4000) {
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 const message = ref('')
+const kind = ref('error')
 const visible = ref(false)
 let timer = null
 
 function onToast(event) {
   message.value = event.detail.message
+  kind.value = event.detail.kind || 'error'
   visible.value = true
   clearTimeout(timer)
   timer = setTimeout(() => {
@@ -43,5 +49,9 @@ onBeforeUnmount(() => window.removeEventListener('mobile:toast', onToast))
   color: var(--color-on-primary);
   box-shadow: var(--shadow-2);
   font-size: var(--font-size-sm);
+}
+
+.toast--success {
+  background: var(--color-success);
 }
 </style>

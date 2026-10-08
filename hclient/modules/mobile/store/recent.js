@@ -62,6 +62,34 @@ function addScan(code, meta) {
   save(SCANS_KEY, state.scans)
 }
 
+function removeScan(code) {
+  state.scans = state.scans.filter((item) => item.code !== code)
+  save(SCANS_KEY, state.scans)
+}
+
+// Prefill handoff to the edit view. RecordEditView (write-path wave) reads
+// sessionStorage 'heurist-mobile-scan-prefill' on mount when creating a record.
+const PREFILL_KEY = 'heurist-mobile-scan-prefill'
+
+function stagePrefill(prefill) {
+  try {
+    sessionStorage.setItem(PREFILL_KEY, JSON.stringify({ ...prefill, at: Date.now() }))
+  } catch {
+    /* best-effort */
+  }
+}
+
+function takePrefill() {
+  try {
+    const raw = sessionStorage.getItem(PREFILL_KEY)
+    sessionStorage.removeItem(PREFILL_KEY)
+    const parsed = raw ? JSON.parse(raw) : null
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
 function clear() {
   state.searches = []
   state.records = []
@@ -78,6 +106,9 @@ export function useRecent() {
     removeSearch,
     addRecord,
     addScan,
+    removeScan,
+    stagePrefill,
+    takePrefill,
     clear
   }
 }

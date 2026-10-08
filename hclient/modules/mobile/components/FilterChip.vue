@@ -17,8 +17,13 @@ defineEmits(['select', 'remove'])
 
 <style scoped>
 .chip__remove {
-  margin-left: var(--space-2);
-  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  margin: 0 calc(-1 * var(--space-2));
+  font-size: 1.1rem;
   line-height: 1;
   opacity: 0.7;
 }

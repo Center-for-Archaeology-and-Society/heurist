@@ -26,15 +26,18 @@ export async function searchRecords(options = {}) {
     params.fields = Array.isArray(fields) ? fields.join(',') : fields
   }
   const data = await apiRequest('records', { query: params, signal })
-  const payload = (data && data.data) || {}
-  let records = payload.records
+  // The modern REST API streams a flat {records, meta, pagination} document;
+  // some legacy endpoints wrap it in {data:{records, count, ...}}
+  const payload = (data && typeof data.data === 'object' && data.data) || data || {}
+  let records = Array.isArray(payload.records) ? payload.records : undefined
   if (!Array.isArray(records) && Array.isArray(payload.ids)) {
     records = payload.ids.map((id) => ({ rec_ID: Number(id) }))
   }
+  const pagination = payload.pagination || {}
   return {
     records: Array.isArray(records) ? records : [],
-    total: Number(payload.count ?? payload.total ?? payload.reccount ?? (records ? records.length : 0)) || 0,
-    offset,
+    total: Number(pagination.total ?? payload.count ?? payload.total ?? payload.reccount ?? (records ? records.length : 0)) || 0,
+    offset: Number(pagination.offset ?? offset) || 0,
     limit
   }
 }
@@ -44,8 +47,8 @@ export async function getRecord(id, { detail = 'detail', signal } = {}) {
     query: buildQuery({ detail }),
     signal
   })
-  const payload = data && data.data
-  if (Array.isArray(payload && payload.records) && payload.records.length) {
+  const payload = (data && typeof data.data === 'object' && data.data) || data || {}
+  if (Array.isArray(payload.records) && payload.records.length) {
     return payload.records[0]
   }
   if (payload && payload.rec_ID !== undefined) {

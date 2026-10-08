@@ -1,23 +1,23 @@
 <template>
   <nav class="tabbar">
-    <router-link class="tabbar__tab" :class="{ 'tabbar__tab--active': isActive('search') }" to="/">
+    <router-link class="tabbar__tab" :class="{ 'tabbar__tab--active': isActive('search') }" to="/" :aria-current="isActive('search') ? 'page' : false">
       <span class="tabbar__icon" aria-hidden="true">🔍</span>
       <span>Search</span>
     </router-link>
-    <router-link class="tabbar__tab" :class="{ 'tabbar__tab--active': isActive('map') }" to="/map">
+    <router-link class="tabbar__tab" :class="{ 'tabbar__tab--active': isActive('map') }" to="/map" :aria-current="isActive('map') ? 'page' : false">
       <span class="tabbar__icon" aria-hidden="true">🗺</span>
       <span>Map</span>
     </router-link>
-    <router-link class="tabbar__tab" :class="{ 'tabbar__tab--active': isActive('filters') }" to="/filters">
+    <router-link class="tabbar__tab" :class="{ 'tabbar__tab--active': isActive('filters') }" to="/filters" :aria-current="isActive('filters') ? 'page' : false">
       <span class="tabbar__icon" aria-hidden="true">⚗</span>
       <span>Filters</span>
     </router-link>
-    <button class="tabbar__tab" type="button" @click="moreOpen = true">
+    <button class="tabbar__tab" type="button" :aria-expanded="moreOpen" @click="moreOpen = true">
       <span class="tabbar__icon" aria-hidden="true">⋯</span>
       <span>More</span>
     </button>
 
-    <div v-if="moreOpen" class="more-sheet" role="dialog" @click.self="moreOpen = false">
+    <div v-if="moreOpen" class="more-sheet" role="dialog" aria-modal="true" @click.self="moreOpen = false">
       <div class="more-sheet__panel">
         <p class="more-sheet__title">{{ auth.state.username || 'Signed in' }}</p>
         <p class="muted more-sheet__db">{{ auth.state.db }}</p>
@@ -36,7 +36,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../store/auth.js'
 
@@ -55,6 +55,19 @@ function doLogout() {
   auth.logout()
   router.push({ name: 'login' })
 }
+
+function onKeydown(event) {
+  if (event.key === 'Escape') {
+    moreOpen.value = false
+  }
+}
+
+watch(() => route.fullPath, () => {
+  moreOpen.value = false
+})
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>
