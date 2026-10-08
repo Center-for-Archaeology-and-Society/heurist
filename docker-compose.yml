@@ -15,7 +15,10 @@ services:
       - -ec
       - |
         mkdir -p /mnt/filestore /mnt/support
-        chown -R 33:33 /mnt/filestore /mnt/support
+        # Existing filestore content is already owned by the web user.
+        # Scanning all uploads on every start delays web availability.
+        chown 33:33 /mnt/filestore
+        chown -R 33:33 /mnt/support
 
   db:
     image: mysql:8.0
