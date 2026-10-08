@@ -59,7 +59,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth, lastDb } from '../store/auth.js'
 
@@ -67,18 +67,12 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuth()
 
-const db = ref(lastDb())
+const db = ref(typeof route.query.db === 'string' ? route.query.db : lastDb())
 const username = ref('')
 const password = ref('')
 const busy = ref(false)
 const error = ref('')
 const showPassword = ref(false)
-
-onMounted(() => {
-  if (!db.value) {
-    db.value = route.query.db || ''
-  }
-})
 
 async function submit() {
   busy.value = true

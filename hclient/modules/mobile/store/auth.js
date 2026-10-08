@@ -53,6 +53,8 @@ const isAuthenticated = computed(() =>
 
 let expiredHandlers = []
 let expiryHandled = null
+const sessionAttempts = new Set()
+let sessionReuseDisabled = false
 
 function persist() {
   if (state.token) {
@@ -81,15 +83,14 @@ async function login(db, username, password) {
     headers: { 'Content-Type': 'application/json' },
     body
   }
-  let res = await fetch(serverRoot() + 'api/' + encodeURIComponent(db) + '/login', init)
-  if (res.status === 404 || res.status === 405) {
-    res = await fetch(serverRoot() + 'hserv/controller/auth.php', init)
-  }
+  const res = await fetch(serverRoot() + 'hserv/controller/auth.php', { ...init, credentials: 'same-origin' })
   const data = await res.json().catch(() => null)
   if (!res.ok || !data || !data.access_token) {
     const message = (data && (data.message || data.error)) || 'Login failed'
     throw new AuthError(res.status, message)
   }
+  sessionReuseDisabled = false
+  sessionAttempts.clear()
   state.token = data.access_token
   state.db = db
   state.username = username
@@ -99,11 +100,43 @@ async function login(db, username, password) {
 }
 
 function logout() {
+  sessionReuseDisabled = true
   state.token = null
   state.db = null
   state.username = null
   state.expiresAt = null
   localStorage.removeItem(STORAGE_KEY)
+}
+
+// A desktop login is stored in an HttpOnly session cookie, not localStorage.
+// Exchange it for a mobile token without asking for credentials again.
+async function restoreSession(db = state.db || lastDb(), force = false) {
+  if (isAuthenticated.value && state.db === db && !force) return true
+  if (state.db && state.db !== db) {
+    state.token = null
+    state.db = null
+    state.username = null
+    state.expiresAt = null
+    persist()
+  }
+  if (!db || sessionReuseDisabled || (!force && sessionAttempts.has(db))) return false
+  sessionAttempts.add(db)
+  try {
+    const res = await fetch(serverRoot() + 'hserv/controller/auth.php', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'session', db, client: 'mobile' })
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok || !data?.access_token) return false
+    state.db = db
+    state.username = data.username || ''
+    applyToken(data)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function onSessionExpired(handler) {
@@ -174,7 +207,7 @@ function handleUnauthorized() {
     return expiryHandled
   }
   expiryHandled = Promise.resolve()
-    .then(requestRefresh)
+    .then(async () => (await requestRefresh()) || (await restoreSession(state.db, true)))
     .then((renewed) => {
       if (!renewed) {
         expireSession()
@@ -192,6 +225,7 @@ export function useAuth() {
     state,
     isAuthenticated,
     login,
+    restoreSession,
     logout,
     lastDb,
     handleUnauthorized,

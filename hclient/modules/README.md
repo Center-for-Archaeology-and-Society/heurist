@@ -57,3 +57,13 @@ the mobile bundle:
 
 Run `apache2ctl configtest` and reload the host Apache service after changing
 this policy. The browser still asks the user for camera permission.
+
+Mobile authentication reuses a valid cached mobile token for the selected database.
+When it is missing or expired, the app posts `{action: "session", db, client: "mobile"}`
+to `hserv/controller/auth.php` with same-origin cookies. The controller verifies
+Heurist's existing database session and current account permissions before issuing
+an API token. An explicit `db` route parameter takes precedence over the last-used
+database. Without an active session, the normal login form remains available;
+password login uses the same JWT controller. Mobile tokens use `$jwt_TTL_Mobile`
+(24 hours by default), and token responses are never cached. Logging out clears
+the mobile cache and prevents automatic session reuse for the current page lifetime.

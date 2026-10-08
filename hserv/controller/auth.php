@@ -3,6 +3,8 @@ require_once dirname(__FILE__).'/../../autoload.php';
 
 use hserv\utilities\UJwt;
 
+header('Cache-Control: private, no-store');
+
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   UJwt::json_out(405, ['status'=>405, 'error'=>HEURIST_INVALID_REQUEST, 'message'=>'Method not allowed'], ['Allow'=>'POST']);
@@ -70,11 +72,21 @@ if( !isset($database) || !$system->init($database) ){
     UJwt::json_out(400, ['status'=>400, 'error'=>HEURIST_INVALID_REQUEST, 'message'=>'Invalid database parameter'], ['WWW-Authenticate' => 'Basic realm="api", charset="UTF-8"']);
 }
 
-if (!$username || !$password || !$system->doLogin($username, $password, 'none')){
+if (($in['action'] ?? '') === 'session') {
+    // Resolve identity from the existing database-scoped cookie session only.
+    $verified = $system->authSession()->loginVerify(true);
+    $user = $system->getCurrentUser();
+    if (!$verified || !$system->getUserId() || !empty($user['ugr_Permissions']['disabled'])) {
+        UJwt::json_out(401, ['status'=>401, 'error'=>HEURIST_REQUEST_DENIED, 'message'=>'No active login for this database']);
+    }
+    $username = $user['ugr_Name'] ?? '';
+} elseif (!$username || !$password || !$system->doLogin($username, $password, 'none')){
   UJwt::json_out(401, ['status'=>401, 'error'=>HEURIST_REQUEST_DENIED, 'message'=>'Invalid credentials'], ['WWW-Authenticate' => 'Basic realm="api", charset="UTF-8"']);
 }
 
-$ttl = ($jwt_TTL??600); //10 minutes
+$ttl = ($in['client'] ?? '') === 'mobile'
+    ? ((isset($jwt_TTL_Mobile) && intval($jwt_TTL_Mobile) > 0) ? intval($jwt_TTL_Mobile) : 86400)
+    : ($jwt_TTL ?? 600);
 
 $now = time();
 $claims = [
@@ -90,5 +102,7 @@ $token = UJwt::jwt_create($claims, $jwt_Secret);
 UJwt::json_out(200, [
   'access_token' => $token,
   'token_type'   => 'Bearer',
-  'expires_in'   => $ttl
+  'expires_in'   => $ttl,
+  'db'           => $database,
+  'username'     => $username
 ]);

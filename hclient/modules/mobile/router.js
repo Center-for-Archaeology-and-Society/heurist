@@ -21,13 +21,16 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuth()
+  const db = typeof to.query.db === 'string' ? to.query.db : auth.state.db || auth.lastDb()
+  await auth.restoreSession(db)
   if (!to.meta.public && !auth.isAuthenticated.value) {
-    return { name: 'login', query: to.fullPath === '/' ? {} : { redirect: to.fullPath } }
+    return { name: 'login', query: { ...(db ? { db } : {}), ...(to.fullPath === '/' ? {} : { redirect: to.fullPath }) } }
   }
   if (to.name === 'login' && auth.isAuthenticated.value) {
-    return { name: 'search' }
+    return typeof to.query.redirect === 'string' && to.query.redirect.startsWith('/')
+      ? to.query.redirect : { name: 'search' }
   }
   return true
 })
