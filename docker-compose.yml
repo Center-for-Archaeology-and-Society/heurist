@@ -39,14 +39,18 @@ services:
       HEURIST_DB_ADMIN_USERNAME: heurist
       HEURIST_DB_ADMIN_PASSWORD: ${HEURIST_DB_ADMIN_PASSWORD:-heurist}
       HEURIST_JWT_SECRET: ${HEURIST_JWT_SECRET:-dev-only-secret-change-me}
-      HEURIST_SERVER_NAME: ${HEURIST_SERVER_NAME:-}
-      HEURIST_BASE_URL: ${HEURIST_BASE_URL:-}
-      HEURIST_PUBLIC_PATH: ${HEURIST_PUBLIC_PATH:-}
+      HEURIST_SERVER_NAME: ${HEURIST_SERVER_NAME:-cas.rc.asu.edu}
+      HEURIST_BASE_URL: ${HEURIST_BASE_URL:-https://cas.rc.asu.edu/h7-alpha/}
+      HEURIST_PUBLIC_PATH: ${HEURIST_PUBLIC_PATH:-/h7-alpha/}
     volumes:
       # Live codebase (local dev: edits in the repo show up immediately)
       - .:/var/www/html/HEURIST/heurist
       # Parent-level configuration (mounted read-only, kept out of the repo root)
       - ./docker/heuristConfigIni.php:/var/www/html/HEURIST/heuristConfigIni.php:ro
+      # Live config, so pretty-URL routing fixes survive container recreates
+      # without an image rebuild
+      - ./docker/apache-heurist.conf:/etc/apache2/sites-available/000-default.conf:ro
+      - ./docker/entrypoint.sh:/usr/local/bin/heurist-entrypoint.sh:ro
       # Uploaded files survive container rebuilds
       - ${HEURIST_DATA_ROOT:-./data}/filestore:/var/www/html/HEURIST/HEURIST_FILESTORE
       # Downloaded support bundles survive container rebuilds

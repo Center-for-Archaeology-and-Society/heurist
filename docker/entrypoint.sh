@@ -71,6 +71,14 @@ if [ -d "$EXT" ] && [ ! -f "$EXT/js/datatable/datatables.min.js" ]; then
         https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css || true
 fi
 
+# 4d. Public version alias: the reverse proxy publishes this code as /h7-alpha
+#     while the code lives in the /heurist folder. The path-based router derives
+#     the version folder from the incoming URL, so /h7-alpha must resolve to the
+#     heurist code folder for root/index.php to include the right entry point.
+if [ ! -e "$BASE/h7-alpha" ]; then
+    ln -s heurist "$BASE/h7-alpha"
+fi
+
 # 5. Permissions: Apache (www-data) must be able to write the filestore.
 #    The persistent filestore is normally prepared with the correct ownership.
 #    Repair only the mount root here: recursively walking a large filestore on
