@@ -12,11 +12,11 @@
       <LoadingSpinner v-if="loading" />
       <EmptyState
         v-else-if="error"
-        icon="⚠"
+        icon="alert"
         title="Could not load filters"
         :message="error.message || String(error)"
       >
-        <button class="btn btn--secondary" type="button" @click="load">Retry</button>
+        <button class="btn btn--secondary" type="button" @click="load"><AppIcon name="refresh" /> Retry</button>
       </EmptyState>
       <template v-else>
         <div v-if="builderOpen" class="card builder">
@@ -69,7 +69,7 @@
           <div class="builder__save">
             <input v-model.trim="filterName" class="input" type="text" placeholder="Filter name" maxlength="200">
             <button class="btn" type="button" :disabled="!canSave || savingFilter" @click="saveCurrentFilter">
-              {{ savingFilter ? 'Saving…' : 'Save' }}
+              <AppIcon name="save" /> {{ savingFilter ? 'Saving…' : 'Save' }}
             </button>
           </div>
         </div>
@@ -78,23 +78,23 @@
         <div v-for="filter in ownFilters" :key="filter.id" class="card filter-row">
           <button class="filter-row__open" type="button" @click="run(filter)">
             <span class="filter-row__name">{{ filter.name || 'Unnamed filter' }}</span>
-            <span class="muted">›</span>
+            <span class="muted"><AppIcon name="next" /></span>
           </button>
-          <button class="filter-row__delete" type="button" aria-label="Delete filter" @click="removeFilter(filter)">🗑</button>
+          <button class="filter-row__delete" type="button" aria-label="Delete filter" @click="removeFilter(filter)"><AppIcon name="trash" /></button>
         </div>
 
         <h2 v-if="groupFilters.length" class="section-title">Group filters</h2>
         <div v-for="filter in groupFilters" :key="filter.id" class="card filter-row">
           <button class="filter-row__open" type="button" @click="run(filter)">
             <span class="filter-row__name">{{ filter.name || 'Unnamed filter' }}</span>
-            <span class="muted">›</span>
+            <span class="muted"><AppIcon name="next" /></span>
           </button>
-          <button class="filter-row__delete" type="button" aria-label="Delete filter" @click="removeFilter(filter)">🗑</button>
+          <button class="filter-row__delete" type="button" aria-label="Delete filter" @click="removeFilter(filter)"><AppIcon name="trash" /></button>
         </div>
 
         <EmptyState
           v-if="!ownFilters.length && !groupFilters.length && !builderOpen"
-          icon="⚗"
+          icon="filter"
           title="No saved filters"
           message="Build one with + New, then run it from here or from the search screen."
         />

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'heurist-mobile-v4'
+const CACHE_NAME = 'heurist-mobile-v5'
 const PRECACHE_URLS = ['./', './index.html', './manifest.json', './icons/icon.svg']
 
 self.addEventListener('install', (event) => {

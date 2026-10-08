@@ -2,14 +2,14 @@
   <div class="page">
     <PageHeader :title="recordTitle" back>
       <template #actions>
-        <button v-if="record" class="pageheader__action" type="button" aria-label="Show network" @click="showNetwork">⌗⌗</button>
-        <button v-if="hasGeo" class="pageheader__action" type="button" aria-label="Locate on map" @click="locate">📍</button>
+        <button v-if="record" class="pageheader__action" type="button" aria-label="Show network" @click="showNetwork"><AppIcon name="network" /></button>
+        <button v-if="hasGeo" class="pageheader__action" type="button" aria-label="Locate on map" @click="locate"><AppIcon name="location" /></button>
         <router-link
           v-if="record"
           class="pageheader__action"
           :to="{ name: 'record-edit', params: { id: String(recordId) } }"
           aria-label="Edit"
-        >✎</router-link>
+        ><AppIcon name="edit" /></router-link>
       </template>
     </PageHeader>
 
@@ -17,22 +17,22 @@
       <LoadingSpinner v-if="loading" />
       <EmptyState
         v-else-if="error"
-        icon="⚠"
+        icon="alert"
         title="Could not load record"
         :message="error.message || String(error)"
       >
-        <button class="btn btn--secondary" type="button" @click="load">Retry</button>
+        <button class="btn btn--secondary" type="button" @click="load"><AppIcon name="refresh" /> Retry</button>
       </EmptyState>
       <EmptyState
         v-else-if="!record"
-        icon="∅"
+        icon="document"
         title="Record not found"
         message="It may have been deleted, or you may not have access to it."
       >
         <router-link class="btn btn--secondary" :to="{ name: 'search' }">Back to search</router-link>
       </EmptyState>
       <template v-else>
-        <p class="rectype muted">{{ rectypeName }} · #{{ recordId }}</p>
+        <p class="rectype muted"><RecordTypeIcon :id="rectypeId" /> {{ rectypeName }} · #{{ recordId }}</p>
         <h1 class="record-title">{{ record.title || 'Untitled record' }}</h1>
 
         <section
@@ -118,8 +118,8 @@
           <router-link class="btn btn--secondary" :to="{ name: 'record-edit', params: { id: String(recordId) } }">
             Edit
           </router-link>
-          <button class="btn btn--secondary" type="button" @click="showNetwork">Show network</button>
-          <button v-if="hasGeo" class="btn btn--secondary" type="button" @click="locate">Locate</button>
+          <button class="btn btn--secondary" type="button" @click="showNetwork"><AppIcon name="network" /> Show network</button>
+          <button v-if="hasGeo" class="btn btn--secondary" type="button" @click="locate"><AppIcon name="location" /> Locate</button>
           <button class="btn btn--danger" type="button" :disabled="deleting" @click="confirmDelete">
             {{ deleting ? 'Deleting…' : 'Delete' }}
           </button>
@@ -396,4 +396,7 @@ onMounted(load)
   text-decoration: none;
   cursor: pointer;
 }
+
+.rectype { display: flex; align-items: center; gap: var(--space-2); }
+.fieldgroup__title { margin: calc(-1 * var(--space-3)) calc(-1 * var(--space-3)) var(--space-3); padding: var(--space-2) var(--space-3); background: var(--color-editor); border-bottom: 1px solid var(--color-border); }
 </style>

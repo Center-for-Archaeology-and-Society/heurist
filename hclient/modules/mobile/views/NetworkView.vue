@@ -2,7 +2,7 @@
   <div class="page">
     <PageHeader title="Network" back>
       <template #actions>
-        <button class="network-action" type="button" aria-label="Recenter graph" @click="resetView">⌖</button>
+        <button class="network-action" type="button" aria-label="Recenter graph" @click="resetView"><AppIcon name="location" /></button>
       </template>
     </PageHeader>
 
@@ -11,20 +11,20 @@
     <template v-else>
       <EmptyState
         v-if="error"
-        icon="⚠"
+        icon="alert"
         title="Could not load network"
         :message="error.message || String(error)"
       >
-        <button class="btn btn--secondary" type="button" @click="load">Retry</button>
+        <button class="btn btn--secondary" type="button" @click="load"><AppIcon name="refresh" /> Retry</button>
       </EmptyState>
 
       <EmptyState
         v-else-if="!nodes.length"
-        icon="⌗⌗"
+        icon="network"
         title="No relationships found"
         :message="emptyMessage"
       >
-        <button class="btn btn--secondary" type="button" @click="load">Retry</button>
+        <button class="btn btn--secondary" type="button" @click="load"><AppIcon name="refresh" /> Retry</button>
       </EmptyState>
 
       <template v-else>

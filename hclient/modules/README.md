@@ -67,3 +67,13 @@ database. Without an active session, the normal login form remains available;
 password login uses the same JWT controller. Mobile tokens use `$jwt_TTL_Mobile`
 (24 hours by default), and token responses are never cached. Logging out clears
 the mobile cache and prevents automatic session reuse for the current page lifetime.
+
+The mobile theme follows the main Heurist interface: slate headers (`#364050`),
+Explore blue (`#305586`) and pale blue panels (`#D4DBEA`), gray surfaces,
+Helvetica/Arial typography, and compact borders. It reuses the desktop Heurist
+logos, filter/network images, and jQuery UI icon font locally through Vite;
+there is no external font request. See [icon attribution](mobile/assets/ICON-LICENSE.md).
+Record cards and details load each database's record-type icon through the same
+`fileGet.php` endpoint as desktop, falling back to a document icon on failure.
+Mobile tap targets remain at least 44px and browser zoom is enabled. Rebuild with
+`npm run build --prefix hclient/modules/mobile` to deploy theme or asset changes.

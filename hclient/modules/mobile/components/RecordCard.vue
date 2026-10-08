@@ -2,16 +2,16 @@
   <router-link class="recordcard card" :to="{ name: 'record', params: { id: String(recordId) } }">
     <img v-if="thumbnail" class="recordcard__thumb" :src="thumbnail" alt="" loading="lazy">
     <div v-else class="recordcard__thumb recordcard__thumb--placeholder" aria-hidden="true">
-      {{ initial }}
+      <RecordTypeIcon :id="rectypeId" />
     </div>
     <div class="recordcard__body">
       <p class="recordcard__title">{{ title || 'Untitled record' }}</p>
-      <p class="recordcard__meta muted">{{ rectypeName }} · #{{ recordId }}</p>
+      <p class="recordcard__meta muted"><RecordTypeIcon v-if="thumbnail" :id="rectypeId" /> {{ rectypeName }} · #{{ recordId }}</p>
       <p v-if="chips.length" class="recordcard__chips">
         <span v-for="chip in chips" :key="chip.id" class="recordcard__chip">{{ chip.label }}: {{ chip.title }}</span>
       </p>
     </div>
-    <span class="recordcard__chevron muted" aria-hidden="true">›</span>
+    <span class="recordcard__chevron muted" aria-hidden="true"><AppIcon name="next" /></span>
   </router-link>
 </template>
 
@@ -126,7 +126,7 @@ const chips = computed(() => {
   white-space: nowrap;
   padding: 1px var(--space-2);
   border-radius: 999px;
-  background: var(--color-bg);
+  background: var(--color-editor);
   font-size: var(--font-size-sm);
   color: var(--color-muted);
 }
@@ -136,4 +136,7 @@ const chips = computed(() => {
   font-size: 1.25rem;
   line-height: 1;
 }
+
+.recordcard__meta { display: flex; align-items: center; gap: var(--space-1); }
+.recordcard__meta .record-type-icon { width: 16px; height: 16px; }
 </style>

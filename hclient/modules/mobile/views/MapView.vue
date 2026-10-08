@@ -19,7 +19,7 @@
           No geographic features matched{{ recordId ? ' this record' : ' in this view' }}.
           Pan, zoom out or refine the search.
         </p>
-        <button class="btn btn--secondary" type="button" @click="refetchNow">Retry</button>
+        <button class="btn btn--secondary" type="button" @click="refetchNow"><AppIcon name="refresh" /> Retry</button>
       </div>
     </div>
 
@@ -27,7 +27,7 @@
       <div class="card map-empty">
         <p class="map-empty__title">Could not load map features</p>
         <p class="muted map-empty__msg">{{ errorMessage }}</p>
-        <button class="btn btn--secondary" type="button" @click="refetchNow">Retry</button>
+        <button class="btn btn--secondary" type="button" @click="refetchNow"><AppIcon name="refresh" /> Retry</button>
       </div>
     </div>
 
@@ -35,7 +35,7 @@
 
     <transition name="sheet">
       <div v-if="sheet" class="map-sheet card">
-        <button class="map-sheet__close" type="button" aria-label="Close" @click="sheet = null">×</button>
+        <button class="map-sheet__close" type="button" aria-label="Close" @click="sheet = null"><AppIcon name="close" /></button>
         <p class="map-sheet__title">{{ sheet.title || 'Untitled record' }}</p>
         <p class="muted map-sheet__meta">{{ sheet.meta }}</p>
         <router-link

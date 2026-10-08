@@ -19,8 +19,8 @@
         </p>
       </div>
 
-      <button v-if="!scanning" class="btn" type="button" :disabled="busy" @click="startScanning">Start camera</button>
-      <button v-else class="btn btn--secondary" type="button" @click="stopScanning">Stop camera</button>
+      <button v-if="!scanning" class="btn" type="button" :disabled="busy" @click="startScanning"><AppIcon name="camera" /> Start camera</button>
+      <button v-else class="btn btn--secondary" type="button" @click="stopScanning"><AppIcon name="stop" /> Stop camera</button>
 
       <form class="scan-manual" @submit.prevent="submitCode">
         <input
@@ -30,7 +30,7 @@
           inputmode="numeric"
           placeholder="Or type an ISBN / EAN / code…"
         >
-        <button class="btn" type="submit" :disabled="!manualCode || busy">Look up</button>
+        <button class="btn" type="submit" :disabled="!manualCode || busy"><AppIcon name="search" /> Look up</button>
       </form>
 
       <template v-if="busy">
@@ -39,7 +39,7 @@
 
       <template v-else-if="phase === 'services'">
         <EmptyState
-          icon="⌗"
+          icon="camera"
           title="Not in database"
           :message="'No record matches ' + activeCode + '. Look it up in an external service:'"
         >
@@ -73,7 +73,7 @@
                 <dd>{{ value }}</dd>
               </template>
             </dl>
-            <button class="btn" type="button" @click="createRecord(selectedEntry)">Create record</button>
+            <button class="btn" type="button" @click="createRecord(selectedEntry)"><AppIcon name="plus" /> Create record</button>
           </template>
           <template v-else-if="result && result.entries.length > 1">
             <p class="muted scan-prefill__subtitle">{{ result.entries.length }} results — pick one to prefill:</p>

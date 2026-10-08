@@ -1,6 +1,6 @@
 <template>
   <div class="emptystate">
-    <p class="emptystate__icon" aria-hidden="true">{{ icon }}</p>
+    <p class="emptystate__icon" aria-hidden="true"><AppIcon :name="icon" /></p>
     <p class="emptystate__title">{{ title }}</p>
     <p v-if="message" class="emptystate__message muted">{{ message }}</p>
     <div class="emptystate__actions">
@@ -11,7 +11,7 @@
 
 <script setup>
 defineProps({
-  icon: { type: String, default: '∅' },
+  icon: { type: String, default: 'document' },
   title: { type: String, required: true },
   message: { type: String, default: '' }
 })
@@ -28,6 +28,10 @@ defineProps({
 
 .emptystate__icon {
   margin: 0 0 var(--space-2);
+  font-size: 2rem;
+}
+
+.emptystate__icon .app-icon {
   font-size: 2rem;
   color: var(--color-muted);
 }

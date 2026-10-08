@@ -1,6 +1,7 @@
 <template>
   <header class="pageheader">
-    <button v-if="back" class="pageheader__back" type="button" aria-label="Back" @click="goBack">‹</button>
+    <button v-if="back" class="pageheader__back" type="button" aria-label="Back" @click="goBack"><AppIcon name="back" /></button>
+    <HeuristBrand v-if="!back" inverse />
     <h1 class="pageheader__title">{{ title }}</h1>
     <div class="pageheader__actions">
       <slot name="actions" />
@@ -34,7 +35,7 @@ function goBack() {
   gap: var(--space-2);
   min-height: calc(var(--tap) + var(--space-2));
   padding: var(--space-2) var(--space-3);
-  background: var(--color-primary);
+  background: var(--color-header);
   color: var(--color-on-primary);
 }
 

@@ -12,11 +12,11 @@
       <LoadingSpinner v-if="loading" />
       <EmptyState
         v-else-if="error"
-        icon="⚠"
+        icon="alert"
         title="Could not load record"
         :message="error.message || String(error)"
       >
-        <button class="btn btn--secondary" type="button" @click="load">Retry</button>
+        <button class="btn btn--secondary" type="button" @click="load"><AppIcon name="refresh" /> Retry</button>
       </EmptyState>
       <template v-else>
         <template v-if="isNew">

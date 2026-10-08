@@ -92,7 +92,7 @@ export function normalizeRecord(raw, db) {
   return {
     id,
     title: String(raw.rec_Title ?? raw.title ?? ''),
-    rectypeId: Number(raw.rec_RecTypeID ?? raw.rectype) || null,
+    rectypeId: Number(raw.rec_RecTypeID ?? raw.rectypeId ?? raw.rectype) || null,
     details,
     thumbnailUrl
   }

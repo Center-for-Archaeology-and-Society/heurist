@@ -1,7 +1,7 @@
 <template>
   <button class="chip" :class="{ 'chip--active': active }" type="button" @click="$emit('select', filter)">
     {{ filter.name || 'Unnamed filter' }}
-    <span v-if="removable" class="chip__remove" role="button" aria-label="Remove" @click.stop="$emit('remove', filter)">×</span>
+    <span v-if="removable" class="chip__remove" role="button" aria-label="Remove" @click.stop="$emit('remove', filter)"><AppIcon name="close" /></span>
   </button>
 </template>
 

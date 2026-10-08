@@ -1,10 +1,17 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router.js'
+import AppIcon from './components/AppIcon.vue'
+import RecordTypeIcon from './components/RecordTypeIcon.vue'
+import HeuristBrand from './components/HeuristBrand.vue'
 import './styles/tokens.css'
 import './styles/base.css'
 
-createApp(App).use(router).mount('#app')
+createApp(App)
+  .component('AppIcon', AppIcon)
+  .component('RecordTypeIcon', RecordTypeIcon)
+  .component('HeuristBrand', HeuristBrand)
+  .use(router).mount('#app')
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   const updatingExistingWorker = Boolean(navigator.serviceWorker.controller)

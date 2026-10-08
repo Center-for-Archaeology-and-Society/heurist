@@ -1,19 +1,19 @@
 <template>
   <nav class="tabbar">
     <router-link class="tabbar__tab" :class="{ 'tabbar__tab--active': isActive('search') }" to="/" :aria-current="isActive('search') ? 'page' : false">
-      <span class="tabbar__icon" aria-hidden="true">🔍</span>
+      <span class="tabbar__icon" aria-hidden="true"><AppIcon name="search" /></span>
       <span>Search</span>
     </router-link>
     <router-link class="tabbar__tab" :class="{ 'tabbar__tab--active': isActive('map') }" to="/map" :aria-current="isActive('map') ? 'page' : false">
-      <span class="tabbar__icon" aria-hidden="true">🗺</span>
+      <span class="tabbar__icon" aria-hidden="true"><AppIcon name="map" /></span>
       <span>Map</span>
     </router-link>
     <router-link class="tabbar__tab" :class="{ 'tabbar__tab--active': isActive('filters') }" to="/filters" :aria-current="isActive('filters') ? 'page' : false">
-      <span class="tabbar__icon" aria-hidden="true">⚗</span>
+      <span class="tabbar__icon" aria-hidden="true"><AppIcon name="filter" /></span>
       <span>Filters</span>
     </router-link>
     <button class="tabbar__tab" type="button" :aria-expanded="moreOpen" @click="moreOpen = true">
-      <span class="tabbar__icon" aria-hidden="true">⋯</span>
+      <span class="tabbar__icon" aria-hidden="true"><AppIcon name="menu" /></span>
       <span>More</span>
     </button>
 
@@ -22,13 +22,13 @@
         <p class="more-sheet__title">{{ auth.state.username || 'Signed in' }}</p>
         <p class="muted more-sheet__db">{{ auth.state.db }}</p>
         <router-link class="btn btn--secondary more-sheet__action" to="/scan" @click="moreOpen = false">
-          Scan barcode
+          <AppIcon name="camera" /> Scan barcode
         </router-link>
-        <button class="btn btn--secondary more-sheet__action" type="button" @click="about = !about">About</button>
+        <button class="btn btn--secondary more-sheet__action" type="button" @click="about = !about"><AppIcon name="info" /> About</button>
         <p v-if="about" class="muted more-sheet__about">
           Heurist mobile companion (PWA). Search, map and edit Heurist records in the field.
         </p>
-        <button class="btn btn--danger more-sheet__action" type="button" @click="doLogout">Log out</button>
+        <button class="btn btn--danger more-sheet__action" type="button" @click="doLogout"><AppIcon name="logout" /> Log out</button>
         <button class="btn btn--ghost more-sheet__action" type="button" @click="moreOpen = false">Close</button>
       </div>
     </div>
@@ -96,6 +96,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 .tabbar__tab--active {
   color: var(--color-primary);
+  background: var(--color-explore);
+  box-shadow: inset 0 3px var(--color-primary);
   font-weight: 600;
 }
 

@@ -1,5 +1,8 @@
 <template>
   <div class="page">
+    <PageHeader title="Search">
+      <template #actions><span class="search-database">{{ auth.state.db }}</span></template>
+    </PageHeader>
     <div class="searchbar">
       <input
         v-model.trim="queryText"
@@ -16,8 +19,8 @@
         type="button"
         aria-label="Clear search"
         @click="clearSearch"
-      >×</button>
-      <router-link class="searchbar__scan" :to="{ name: 'scan' }" aria-label="Scan barcode">⌗</router-link>
+      ><AppIcon name="close" /></button>
+      <router-link class="searchbar__scan" :to="{ name: 'scan' }" aria-label="Scan barcode"><AppIcon name="camera" /></router-link>
     </div>
 
     <div v-if="filters.length" class="filters-row">
@@ -53,15 +56,15 @@
       <LoadingSpinner v-if="loading && !records.length" />
       <EmptyState
         v-else-if="error"
-        icon="⚠"
+        icon="alert"
         title="Search failed"
         :message="errorMessage"
       >
-        <button class="btn btn--secondary" type="button" @click="retry">Retry</button>
+        <button class="btn btn--secondary" type="button" @click="retry"><AppIcon name="refresh" /> Retry</button>
       </EmptyState>
       <EmptyState
         v-else-if="!records.length && !loading"
-        icon="🔍"
+        icon="search"
         :title="activeFilterId ? 'No records match this filter' : 'No records found'"
         :message="queryText ? 'Try a different search or filter.' : 'Type in the search bar above, or pick a saved filter.'"
       />
@@ -86,6 +89,9 @@ import { listFilters, filterToQuery } from '../api/filters.js'
 import { queryRecords, freeTextQuery } from '../components/recordData.js'
 import { useRecent } from '../store/recent.js'
 import { showError } from '../components/ErrorToast.vue'
+import PageHeader from '../components/PageHeader.vue'
+import { useAuth } from '../store/auth.js'
+import { useDefinitions } from '../store/definitions.js'
 import RecordCard from '../components/RecordCard.vue'
 import FilterChip from '../components/FilterChip.vue'
 import EmptyState from '../components/EmptyState.vue'
@@ -96,6 +102,7 @@ const PULL_THRESHOLD = 60
 const DEBOUNCE_MS = 400
 
 const route = useRoute()
+const auth = useAuth()
 const recent = useRecent()
 
 const queryText = ref('')
@@ -271,6 +278,8 @@ watch(records, () => {
 })
 
 onMounted(async () => {
+  // Load type labels alongside results; a failed snapshot must not block search.
+  useDefinitions().load(auth.state.db).catch(() => {})
   observer = new IntersectionObserver((entries) => {
     if (entries.some((entry) => entry.isIntersecting)) {
       loadMore()
@@ -313,8 +322,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-2) var(--space-3);
-  padding-top: calc(var(--space-2) + var(--safe-top));
-  background: var(--color-surface);
+  background: var(--color-explore);
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -349,7 +357,7 @@ onBeforeUnmount(() => {
   gap: var(--space-2);
   overflow-x: auto;
   padding: var(--space-2) var(--space-3);
-  background: var(--color-surface);
+  background: var(--color-explore);
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -384,4 +392,6 @@ onBeforeUnmount(() => {
   text-align: center;
   font-size: var(--font-size-sm);
 }
+
+.search-database { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-sm); }
 </style>

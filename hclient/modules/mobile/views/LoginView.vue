@@ -1,7 +1,7 @@
 <template>
   <div class="login page">
     <form class="login__panel" @submit.prevent="submit">
-      <h1 class="login__title">Heurist</h1>
+      <h1 class="login__title"><HeuristBrand /></h1>
       <p class="muted login__subtitle">Sign in to your database</p>
 
       <label class="login__label" for="login-db">Database</label>
@@ -52,7 +52,7 @@
       <p v-if="error" class="login__error" role="alert">{{ error }}</p>
 
       <button class="btn login__submit" type="submit" :disabled="busy">
-        {{ busy ? 'Signing in…' : 'Sign in' }}
+        <AppIcon name="login" /> {{ busy ? 'Signing in…' : 'Sign in' }}
       </button>
     </form>
   </div>
@@ -152,4 +152,9 @@ async function submit() {
   color: var(--color-danger);
   font-size: var(--font-size-sm);
 }
+
+.login { background: var(--color-header); }
+.login__panel { padding: var(--space-5); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); box-shadow: var(--shadow-2); }
+.login__title { margin-bottom: var(--space-4); }
+.login__title .heurist-brand { width: 210px; max-width: 100%; }
 </style>
