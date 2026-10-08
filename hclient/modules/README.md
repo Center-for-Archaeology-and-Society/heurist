@@ -24,3 +24,23 @@ Current structure:
 
 Shared code used *inside* Vite applications belongs in the separate future
 `@heurist/client-core` package, not in this directory.
+
+## Mobile app
+
+The standalone mobile interface lives in `mobile/`. The main Heurist entry
+page redirects mobile browsers to `hclient/modules/mobile/dist/#/login`,
+preserving the selected database. Use `?mobile=1` to request the mobile
+interface explicitly, or `?mobile=0` to use the desktop interface.
+
+Build the browser bundle before deployment:
+
+```sh
+cd hclient/modules/mobile
+npm ci
+npm run build
+```
+
+The build includes the web manifest, service worker and icons. The manifest
+resolves its start URL from the deployed bundle directory. In the Docker
+development stack the repository is mounted live, so PHP changes and rebuilt
+client assets are available without recreating the container.

@@ -248,6 +248,22 @@ if( @$_REQUEST['isalive']==1){
 
 
 
+// Route the main application entry point to the companion app on mobile.
+// Explicit mobile=1/0 also lets users choose either interface.
+$mobileView = $_GET['mobile'] ?? null;
+$isMobileBrowser = preg_match('/Android|iPhone|iPad|iPod|Mobile/i', $_SERVER['HTTP_USER_AGENT'] ?? '') === 1;
+header('Vary: User-Agent', false);
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
+    && ($mobileView === '1' || ($mobileView !== '0' && $isMobileBrowser))) {
+    $mobileURL = rtrim(PDIR, '/') . '/hclient/modules/mobile/dist/#/login';
+    if (!empty($_REQUEST['db']) && is_string($_REQUEST['db'])) {
+        $mobileURL .= '?' . http_build_query(['db' => $_REQUEST['db']], '', '&', PHP_QUERY_RFC3986);
+    }
+    header('Cache-Control: private, no-store');
+    header('Location: ' . $mobileURL, true, 302);
+    exit;
+}
+
 define('IS_INDEX_PAGE',true);
 if(!defined('PDIR')) {define('PDIR','');}
 
