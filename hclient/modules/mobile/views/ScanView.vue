@@ -27,7 +27,9 @@
           v-model.trim="manualCode"
           class="input"
           type="text"
-          inputmode="numeric"
+          autocapitalize="none"
+          autocorrect="off"
+          spellcheck="false"
           placeholder="Or type an ISBN / EAN / code…"
         >
         <button class="btn" type="submit" :disabled="!manualCode || busy"><AppIcon name="search" /> Look up</button>
@@ -120,6 +122,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { searchRecords } from '../api/records.js'
+import { exactPropertyQuery } from '../components/recordData.js'
 import { lookup, suggestService, LOOKUP_SERVICES } from '../api/lookup.js'
 import { useRecent } from '../store/recent.js'
 import { showError } from '../components/ErrorToast.vue'
@@ -280,7 +283,8 @@ async function handleCode(code) {
   busy.value = true
   recent.addScan(value)
   try {
-    const found = await searchRecords({ q: 'any:*"' + value + '"*', detail: 'header', limit: 10 })
+    const q = exactPropertyQuery(value)
+    const found = await searchRecords({ q, detail: 'header', limit: 10 })
     if (found.records.length === 1) {
       recent.addScan(value, { outcome: 'matched' })
       router.push({ name: 'record', params: { id: String(found.records[0].rec_ID) } })
@@ -288,7 +292,7 @@ async function handleCode(code) {
     }
     if (found.records.length > 1) {
       recent.addScan(value, { outcome: found.records.length + ' matches' })
-      router.push({ name: 'search', query: { q: 'any:*"' + value + '"*' } })
+      router.push({ name: 'search', query: { q, text: value } })
       return
     }
     recent.addScan(value, { outcome: 'not in database' })

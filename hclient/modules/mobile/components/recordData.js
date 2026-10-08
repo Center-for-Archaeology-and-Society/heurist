@@ -130,6 +130,12 @@ export function freeTextQuery(text) {
   return value ? 'f:"' + value + '"' : ''
 }
 
+// Use a JSON query so quotes, wildcards and leading zeroes stay literal.
+export function exactPropertyQuery(text) {
+  const value = String(text ?? '').trim()
+  return value ? JSON.stringify([{ f: '==' + value }]) : ''
+}
+
 export function pointerValues(field, values) {
   return values
     .map((value) => {

@@ -3,7 +3,7 @@
     <PageHeader title="Search">
       <template #actions><span class="search-database">{{ auth.state.db }}</span></template>
     </PageHeader>
-    <div class="searchbar">
+    <form class="searchbar" role="search" @submit.prevent="runSearch">
       <input
         v-model.trim="queryText"
         class="input searchbar__input"
@@ -11,7 +11,8 @@
         placeholder="Search records…"
         enterkeyhint="search"
         @input="onInput"
-        @keyup.enter="runSearch"
+        aria-label="Search records"
+        @search="runSearch"
       >
       <button
         v-if="queryText"
@@ -20,8 +21,9 @@
         aria-label="Clear search"
         @click="clearSearch"
       ><AppIcon name="close" /></button>
+      <button class="searchbar__submit btn" type="submit" aria-label="Search"><AppIcon name="search" /></button>
       <router-link class="searchbar__scan" :to="{ name: 'scan' }" aria-label="Scan barcode"><AppIcon name="camera" /></router-link>
-    </div>
+    </form>
 
     <div v-if="filters.length" class="filters-row">
       <FilterChip
@@ -105,7 +107,8 @@ const route = useRoute()
 const auth = useAuth()
 const recent = useRecent()
 
-const queryText = ref('')
+const routeQuery = ref(typeof route.query.q === 'string' ? route.query.q : null)
+const queryText = ref(typeof route.query.text === 'string' ? route.query.text : routeQuery.value || '')
 const activeFilterId = ref(null)
 const records = ref([])
 const total = ref(0)
@@ -119,6 +122,7 @@ const sentinelEl = ref(null)
 const pullDistance = ref(0)
 
 let controller = null
+let fetchSeq = 0
 let observer = null
 let debounceTimer = 0
 let touchStartY = 0
@@ -136,7 +140,10 @@ async function fetchPage({ q, append, filter }) {
   if (controller) {
     controller.abort()
   }
-  controller = new AbortController()
+  const seq = ++fetchSeq
+  const requestController = new AbortController()
+  controller = requestController
+  lastQuery = { q, filter: filter || null }
   const offset = append ? records.value.length : 0
   if (append) {
     loadingMore.value = true
@@ -145,7 +152,8 @@ async function fetchPage({ q, append, filter }) {
     error.value = null
   }
   try {
-    const result = await queryRecords({ q, detail: 'header', limit: PAGE_SIZE, offset, signal: controller.signal })
+    const result = await queryRecords({ q, detail: 'header', limit: PAGE_SIZE, offset, signal: requestController.signal })
+    if (seq !== fetchSeq) return
     records.value = append ? records.value.concat(result.records) : result.records
     total.value = result.total
     lastQuery = { q, filter: filter || null }
@@ -153,41 +161,51 @@ async function fetchPage({ q, append, filter }) {
       recent.addSearch(queryText.value)
     }
   } catch (err) {
-    if (err.name !== 'AbortError') {
+    if (seq === fetchSeq && err.name !== 'AbortError') {
       error.value = err
       if (append) {
         showError(err.message || 'Could not load more records')
       }
     }
   } finally {
-    loading.value = false
-    loadingMore.value = false
-    refreshing.value = false
+    if (seq === fetchSeq) {
+      loading.value = false
+      loadingMore.value = false
+      refreshing.value = false
+      controller = null
+    }
   }
+}
+
+function searchQuery() {
+  return routeQuery.value ?? freeTextQuery(queryText.value)
 }
 
 function runSearch() {
   clearTimeout(debounceTimer)
   activeFilterId.value = null
-  fetchPage({ q: freeTextQuery(queryText.value), append: false })
+  fetchPage({ q: searchQuery(), append: false })
 }
 
 function onInput() {
+  routeQuery.value = null
   activeFilterId.value = null
   clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => {
-    fetchPage({ q: freeTextQuery(queryText.value), append: false })
+    fetchPage({ q: searchQuery(), append: false })
   }, DEBOUNCE_MS)
 }
 
 function clearSearch() {
   clearTimeout(debounceTimer)
   queryText.value = ''
+  routeQuery.value = null
   activeFilterId.value = null
   fetchPage({ q: '', append: false })
 }
 
 async function runFilter(filter) {
+  routeQuery.value = null
   clearTimeout(debounceTimer)
   queryText.value = filter.name
   activeFilterId.value = filter.id
@@ -209,7 +227,7 @@ async function refresh() {
     }
     activeFilterId.value = null
   }
-  await fetchPage({ q: freeTextQuery(queryText.value), append: false })
+  await fetchPage({ q: searchQuery(), append: false })
 }
 
 function retry() {
@@ -249,7 +267,9 @@ watch(() => route.query, (query) => {
     return
   }
   if (typeof query.q === 'string' && query.q !== lastQuery.q) {
-    queryText.value = query.q
+    routeQuery.value = query.q
+    queryText.value = typeof query.text === 'string' ? query.text : query.q
+    activeFilterId.value = null
     fetchPage({ q: query.q, append: false })
   } else if (typeof query.filter === 'string') {
     const filter = filters.value.find((item) => String(item.id) === query.filter)
@@ -285,27 +305,15 @@ onMounted(async () => {
       loadMore()
     }
   })
-  try {
-    filters.value = await listFilters()
-  } catch (err) {
+  // Saved-filter loading must not delay the user's search submission.
+  listFilters().then((items) => { filters.value = items }).catch((err) => {
     showError(err.message || 'Could not load saved filters')
-  }
-  if (typeof route.query.q === 'string') {
-    queryText.value = route.query.q
-  }
-  if (typeof route.query.filter === 'string') {
-    const filter = filters.value.find((item) => String(item.id) === route.query.filter)
-    if (filter) {
-      await runFilter(filter)
-      return
-    }
-  }
-  // Route queries are already Heurist queries (for example a saved filter).
-  const q = typeof route.query.q === 'string' ? route.query.q : freeTextQuery(queryText.value)
-  await fetchPage({ q, append: false })
+  })
+  await fetchPage({ q: searchQuery(), append: false })
 })
 
 onBeforeUnmount(() => {
+  fetchSeq++
   clearTimeout(debounceTimer)
   if (controller) {
     controller.abort()
@@ -324,6 +332,12 @@ onBeforeUnmount(() => {
   padding: var(--space-2) var(--space-3);
   background: var(--color-explore);
   border-bottom: 1px solid var(--color-border);
+}
+
+.searchbar__submit {
+  flex-shrink: 0;
+  padding: 0;
+  width: var(--tap);
 }
 
 .searchbar__input {

@@ -83,3 +83,15 @@ runs independently of the definitions snapshot. Unsuffixed geographic queries
 use the detail-type index by restricting to geo definitions. Verify geographic
 matching and visibility with the CLI-only temporary-table regression:
 `php admin/verification/testGeoPredicates.php <database>`.
+
+Barcode scans and manually entered codes search all fields using a JSON exact
+comparison (`[{"f":"==<code>"}]`), preserving leading zeroes and literal symbols.
+Single matches open the record; multiple matches open the results list with the
+same exact query. Editing that list's search text resumes ordinary text search.
+The search bar submits through a form, an explicit Search button, or the native
+search event, and does not wait for saved filters to load. Any-field queries also
+include record titles. The CLI-only regression
+`php admin/verification/testExactPropertySearch.php <database>` verifies exact
+matching against connection-local temporary tables.
+Strict all-field comparisons retain an indexed equality prefilter; enum label/code
+matches preserve literal numeric codes and do not interpret barcodes as term IDs.

@@ -151,6 +151,8 @@ final class FieldPredicateCompiler
         }
         $positiveExclusion = strpos($text, '@-') === 0;
         $queries = array();
+        $titleCondition = $this->textCondition('atitle.rec_Title', $text, $state, $positiveExclusion);
+        $queries[] = 'SELECT atitle.rec_ID FROM Records atitle WHERE '.$titleCondition;
         $isDbOwner = !empty(($state['context'] ?? array())['isDbOwner']);
         $detailSourceJoin = $isDbOwner ? '' : 'INNER JOIN Records asrc ON asrc.rec_ID=ad.dtl_RecID ';
         $enumSourceJoin = $isDbOwner ? '' : 'INNER JOIN Records esrc ON esrc.rec_ID=ae.dtl_RecID ';
@@ -166,7 +168,17 @@ final class FieldPredicateCompiler
         $termText = $text;
         if(strpos($termText, '@+') === 0 || strpos($termText, '@-') === 0){ $termText = substr($termText, 2); }
         elseif(strpos($termText, '@') === 0){ $termText = substr($termText, 1); }
-        $termCondition = $this->termCondition('ae.dtl_Value', $termText, $state);
+        if(strpos($termText, '=') === 0){
+            // An exact any-field value is a displayed property, not a term ID.
+            // Preserve numeric codes (including leading zeroes) and compare the
+            // stored enum ID as text so MySQL can use the detail-value index.
+            $labelCondition = $this->textCondition('trm_Label', $termText, $state);
+            $codeCondition = $this->textCondition('trm_Code', $termText, $state);
+            $termCondition = 'ae.dtl_Value IN (SELECT CONCAT(trm_ID) FROM defTerms WHERE '
+                .$labelCondition.' OR '.$codeCondition.')';
+        }else{
+            $termCondition = $this->termCondition('ae.dtl_Value', $termText, $state);
+        }
         $queries[] = 'SELECT ae.dtl_RecID AS rec_ID FROM recDetails ae '
             .'INNER JOIN defDetailTypes aet ON aet.dty_ID=ae.dtl_DetailTypeID '
             .$enumSourceJoin
@@ -386,8 +398,11 @@ final class FieldPredicateCompiler
             return $this->fulltextCondition($column, $text, $state, $positiveFulltext);
         }
         if(strpos($text, '==') === 0){
+            // Keep the normal equality as an indexed prefilter. BINARY alone
+            // disables the text index and scans every detail for barcode lookups.
             $state->bind(substr($text, 2), 's');
-            return 'BINARY '.$column.' = BINARY ?';
+            $state->bind(substr($text, 2), 's');
+            return '('.$column.' = ? AND BINARY '.$column.' = BINARY ?)';
         }
         if(strpos($text, '=') === 0){
             return $this->forcedComparison($column, '=', substr($text, 1), $state);
