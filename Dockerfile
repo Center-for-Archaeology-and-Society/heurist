@@ -82,6 +82,7 @@ RUN a2enconf servername \
         /var/www/html/HEURIST/HEURIST_FILESTORE \
     && find /var/www/html/HEURIST/heurist/movetoparent -maxdepth 1 -type f ! -name 'heuristConfigIni.php' \
         -exec cp -n {} /var/www/html/HEURIST/ \; \
+    && ln -s heurist /var/www/html/HEURIST/h7-alpha \
     && ln -s ../HEURIST_SUPPORT/external_h5 /var/www/html/HEURIST/heurist/external \
     && ln -s ../HEURIST_SUPPORT/help /var/www/html/HEURIST/heurist/help \
     && chown -R www-data:www-data /var/run/apache2 /var/lock/apache2 /var/log/apache2 \

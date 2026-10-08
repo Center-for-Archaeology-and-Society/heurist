@@ -96,4 +96,10 @@ if [[ -d "$EXT" && ! -f "$EXT/js/datatable/datatables.min.js" ]]; then
         https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css || true
 fi
 
+# 4d. The public path router includes the version entry point via this alias.
+# The image creates it because the HEURIST parent is read-only to www-data.
+if [[ ! -e "$BASE/h7-alpha" ]]; then
+    ln -s heurist "$BASE/h7-alpha"
+fi
+
 exec "$@"
