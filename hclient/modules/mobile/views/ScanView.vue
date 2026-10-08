@@ -129,7 +129,7 @@ import LoadingSpinner from '../components/LoadingSpinner.vue'
 
 const PREFILL_ROUTE = { name: 'record-edit', params: { id: '0' } }
 
-const KNOWN_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code', 'isbn']
+const KNOWN_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code']
 const RESCAN_COOLDOWN = 3000
 
 const router = useRouter()
@@ -194,8 +194,12 @@ async function startScanning() {
       videoEl.value.srcObject = stream
       await videoEl.value.play()
     }
-    if ('BarcodeDetector' in window) {
-      detector = new window.BarcodeDetector({ formats: KNOWN_FORMATS })
+    const supportedFormats = 'BarcodeDetector' in window
+      ? await window.BarcodeDetector.getSupportedFormats()
+      : []
+    const formats = KNOWN_FORMATS.filter((format) => supportedFormats.includes(format))
+    if (formats.length) {
+      detector = new window.BarcodeDetector({ formats })
       scanning.value = true
       detectLoop()
     } else {

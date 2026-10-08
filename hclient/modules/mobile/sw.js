@@ -1,4 +1,4 @@
-const CACHE_NAME = 'heurist-mobile-v1'
+const CACHE_NAME = 'heurist-mobile-v2'
 const PRECACHE_URLS = ['./', './index.html', './manifest.json', './icons/icon.svg']
 
 self.addEventListener('install', (event) => {
@@ -10,7 +10,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((names) =>
-      Promise.all(names.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name)))
+      Promise.all(names.filter((name) => name.startsWith('heurist-mobile-') && name !== CACHE_NAME).map((name) => caches.delete(name)))
     ).then(() => self.clients.claim())
   )
 })

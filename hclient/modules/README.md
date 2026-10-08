@@ -44,3 +44,16 @@ The build includes the web manifest, service worker and icons. The manifest
 resolves its start URL from the deployed bundle directory. In the Docker
 development stack the repository is mounted live, so PHP changes and rebuilt
 client assets are available without recreating the container.
+
+The host HTTPS proxy must allow the mobile scanner to request camera access.
+Inside the HTTPS virtual host, override a blanket `camera=()` policy for
+the mobile bundle:
+
+```apache
+<LocationMatch "^/(?:h7-alpha|heurist)/hclient/modules/mobile/dist(?:/|$)">
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(self)"
+</LocationMatch>
+```
+
+Run `apache2ctl configtest` and reload the host Apache service after changing
+this policy. The browser still asks the user for camera permission.
