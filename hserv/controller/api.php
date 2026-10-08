@@ -62,6 +62,34 @@
 * - API requests can authenticate using:
 *       Authorization: Bearer <token>
 * - Token verification is performed in api.php before request dispatch
+* - A still-valid token can be renewed via
+*       POST /api/{db}/auth/refresh   (or POST hserv/controller/auth.php with action=refresh)
+*   Mobile clients may pass "mobile": true to receive the longer
+*   $jwt_TTL_Mobile lifetime (see heuristConfigIni.php)
+*
+* RECORD WRITE ROUTES
+* ---
+* The record CUD actions of record_edit.php (a=add|save|delete) are exposed as
+*
+*       POST   /api/{db}/records/add      create a record
+*       PUT    /api/{db}/records/{id}     save record {id} (POST accepted as alias)
+*       DELETE /api/{db}/records/{id}     delete record {id} (comma-separated ids allowed)
+*
+* SAVED FILTER (SAVED SEARCH) WRITE ROUTES
+* ---
+* The usrSavedSearches functions of dbsSavedSearches.php are exposed as
+*
+*       POST   /api/{db}/sys/filter           insert (svs_Name and svs_Query required)
+*       PUT    /api/{db}/sys/filter/{id}      update (PATCH accepted as alias)
+*       DELETE /api/{db}/sys/filter/{id}      delete
+*
+* LOOKUP (EXTERNAL AUTHORITIES) ROUTE
+* ---
+* The third-party lookup proxy of LookupController.php is exposed as
+*
+*       GET|POST /api/{db}/lookup/{service}[/{metadata}]
+*
+* with the same per-service parameters as the legacy direct entry point.
 * 
 * @project     Heurist academic knowledge management system
 * @package Controller
@@ -263,6 +291,11 @@ $allowed_methods = array('search','add','save','delete');
 
 // Preserve the normalised HTTP verb for route-specific method checks.
 $http_method = strtoupper((string)$method);
+if($_SERVER['REQUEST_METHOD'] === 'GET' && in_array($http_method, array('POST','PUT','DELETE'), true)){
+    // Never let the ?method= or X-HTTP-METHOD override turn a real GET
+    // request into a state-changing call on the modern write routes
+    $http_method = 'GET';
+}
 $method = getAction($method);
 if($method == null || !in_array($method, $allowed_methods)){
     exitWithError('Method not allowed', 405, array('Allow' => 'GET, POST, PUT, PATCH, DELETE'));
@@ -404,6 +437,39 @@ if($is_query_cancel){
     $method = 'search';
 }
 
+// Modern record write routes: POST /records (with a record body) or
+// POST /records/add creates a record, PUT/PATCH/POST /records/{id} saves it
+// and DELETE /records/{id} deletes it. They delegate to the same
+// recordModify.php functions as record_edit.php (a=add|save|delete).
+// POST /records keeps its existing search contract for query-shaped bodies.
+$is_record_add_body = ($resource === 'records' && $http_method === 'POST' && !isset($requestUri[4])
+    && is_array($json) && !empty($json)
+    && (isset($json['rec_RecTypeID']) || isset($json['RecTypeID']) || isset($json['details']))
+    && empty(array_intersect(array_keys($json), array('query','q','ids'))));
+
+$is_record_write = $is_record_add_body;
+if($resource === 'records' && isset($requestUri[4]) && $method !== 'search'){
+
+    if($requestUri[4] === 'add'){
+        if($http_method !== 'POST'){
+            exitWithError('Method not allowed', 405, array('Allow' => 'POST'));
+        }
+        $is_record_write = true;
+
+    }elseif($http_method === 'DELETE'){
+        if(!preg_match('/^\d+(,\d+)*$/', (string)$requestUri[4])){
+            exitWithError('Record id is not defined', 400);
+        }
+        $is_record_write = true;
+
+    }elseif(is_numeric($requestUri[4]) && intval($requestUri[4]) > 0){
+        if(!in_array($http_method, array('POST','PUT'), true)){
+            exitWithError('Method not allowed', 405, array('Allow' => 'POST, PUT, DELETE'));
+        }
+        $is_record_write = true;
+    }
+}
+
 // The modern graph collection returns renderer-neutral graph documents for the
 // heurist-graph client. It is read-only for both GET and POST and has its own
 // request contract (query, links, rule, limits) separate from /records.
@@ -439,34 +505,55 @@ if($is_graph_query){
 $is_system_query = ($resource === 'sys');
 if($is_system_query){
     $hasSystemItem = isset($requestUri[5]) && $requestUri[5] !== '';
-    if($hasSystemItem && (!is_numeric($requestUri[5]) || intval($requestUri[5]) < 1)){
-        exitWithError('System record id is invalid', 400);
-    }
-    $allowedSystemMethods = $hasSystemItem ? array('GET') : array('GET','POST');
-    if(!in_array($http_method, $allowedSystemMethods, true)){
-        exitWithError('Method not allowed', 405, array('Allow'=>implode(', ', $allowedSystemMethods)));
-    }
-    if($http_method === 'POST'
-        && stripos($contentType, 'application/json') === 0
-        && !is_array($json)){
-        exitWithError('Invalid JSON request body', 400);
-    }
-    if($http_method === 'POST' && is_array($json)){
-        foreach(array(
-            'query','q','ids','fields','detail','resolveDetails','rules','limit','offset','sort','filter'
-        ) as $key){
-            if(array_key_exists($key, $json)){ $req_params[$key] = $json[$key]; }
+
+    // Saved-filter write routes: POST /sys/filter inserts, PUT/PATCH/DELETE
+    // /sys/filter/{id} updates or deletes. Reads are unchanged.
+    $is_filter_write = (@$requestUri[4] === 'filter'
+        && in_array($http_method, array('POST','PUT','DELETE'), true));
+
+    if($is_filter_write){
+        if($http_method === 'POST' && $hasSystemItem){
+            exitWithError('Method not allowed', 405, array('Allow' => 'GET, POST, PUT, DELETE'));
         }
-        if(!array_key_exists('fields', $json)){ unset($req_params['fields']); }
-        if(!isset($req_params['query']) && !isset($req_params['q']) && !isset($req_params['ids'])){
-            $contractKeys = array('rules','limit','offset','fields','detail','resolveDetails','sort','filter','debug');
-            $isList = empty($json) || array_keys($json) === range(0, count($json)-1);
-            if($isList || empty(array_intersect(array_keys($json), $contractKeys))){
-                $req_params['query'] = $json;
+        if($http_method !== 'POST'
+            && (!$hasSystemItem || !is_numeric($requestUri[5]) || intval($requestUri[5]) < 1)){
+            exitWithError('System record id is invalid', 400);
+        }
+        if($http_method !== 'DELETE'
+            && stripos($contentType, 'application/json') === 0
+            && !is_array($json)){
+            exitWithError('Invalid JSON request body', 400);
+        }
+    }else{
+        if($hasSystemItem && (!is_numeric($requestUri[5]) || intval($requestUri[5]) < 1)){
+            exitWithError('System record id is invalid', 400);
+        }
+        $allowedSystemMethods = $hasSystemItem ? array('GET') : array('GET','POST');
+        if(!in_array($http_method, $allowedSystemMethods, true)){
+            exitWithError('Method not allowed', 405, array('Allow'=>implode(', ', $allowedSystemMethods)));
+        }
+        if($http_method === 'POST'
+            && stripos($contentType, 'application/json') === 0
+            && !is_array($json)){
+            exitWithError('Invalid JSON request body', 400);
+        }
+        if($http_method === 'POST' && is_array($json)){
+            foreach(array(
+                'query','q','ids','fields','detail','resolveDetails','rules','limit','offset','sort','filter'
+            ) as $key){
+                if(array_key_exists($key, $json)){ $req_params[$key] = $json[$key]; }
+            }
+            if(!array_key_exists('fields', $json)){ unset($req_params['fields']); }
+            if(!isset($req_params['query']) && !isset($req_params['q']) && !isset($req_params['ids'])){
+                $contractKeys = array('rules','limit','offset','fields','detail','resolveDetails','sort','filter','debug');
+                $isList = empty($json) || array_keys($json) === range(0, count($json)-1);
+                if($isList || empty(array_intersect(array_keys($json), $contractKeys))){
+                    $req_params['query'] = $json;
+                }
             }
         }
+        $method = 'search';
     }
-    $method = 'search';
 }
 
 // The modern definitions collection returns one cached database-structure
@@ -499,6 +586,27 @@ if($is_jobs_query && !in_array($http_method, array('GET','POST','DELETE'), true)
     exitWithError('Method not allowed', 405, array('Allow' => 'GET, POST, DELETE'));
 }
 
+// External lookup proxy: GET|POST /api/{db}/lookup/{service}[/{metadata}]
+// Read-only proxying of the third-party services configured in
+// LookupController.php; both methods are treated as search.
+$is_lookup_query = ($resource === 'lookup');
+if($is_lookup_query){
+    if(!in_array($http_method, array('GET','POST'), true)){
+        exitWithError('Method not allowed', 405, array('Allow' => 'GET, POST'));
+    }
+    $method = 'search';
+}
+
+// JWT token renewal: POST /api/{db}/auth/refresh. auth.php handles its own
+// authentication, so no session/JWT processing is done here.
+$is_auth_refresh = ($resource === 'auth' && @$requestUri[4] === 'refresh');
+if($is_auth_refresh && $http_method !== 'POST'){
+    exitWithError('Method not allowed', 405, array('Allow' => 'POST'));
+}
+if($resource === 'auth' && !$is_auth_refresh){
+    exitWithError('Not found', 404);
+}
+
 // Routes where auth processing is not needed here
 $is_public_annotation_read =
     ($resource === 'annotations'
@@ -526,6 +634,7 @@ $is_public_annotation_read =
 $skip_auth_processing =
     ($resource === 'login') ||
     ($resource === 'logout') ||
+    ($resource === 'auth') ||
     $is_public_annotation_read ||
     ($resource === 'iiif') ||
     in_array($resource, ['dbs','databases'], true);
@@ -542,9 +651,16 @@ if($method === 'search'){
         'rst', 'recstructure',
         'def',
         'map', 'time',
-        'reports'
+        'reports',
+        'lookup'
     );
-    $allow_anonymous = in_array($resource, $publicSearchResources, true);    
+    $allow_anonymous = in_array($resource, $publicSearchResources, true);
+    if($is_record_write){
+        // record add/save/delete must never be reachable without a user
+        // (POST /records with a record body would otherwise inherit the
+        // anonymous-read allowance of the records search contract)
+        $allow_anonymous = false;
+    }
 }
 
 if(!$skip_auth_processing){
@@ -579,6 +695,49 @@ if($is_def_query){
     $system->dbclose();
     exit;
 
+}elseif($is_auth_refresh){
+
+    // POST /api/{db}/auth/refresh - re-issues a token for a valid, unexpired
+    // Bearer token. auth.php handles its own authentication and reads the
+    // refresh action from the request; no session/JWT processing here.
+    $_REQUEST['action'] = 'refresh';
+    require_once dirname(__FILE__).'/auth.php';
+    exit;
+
+}elseif($is_lookup_query){
+
+    // GET|POST /api/{db}/lookup/{service}[/{metadata}]
+    // Delegates to LookupController.php with the same per-service request
+    // parameters as its legacy direct entry point (service, q, metadata, dbg).
+    // The search value may be passed as "value" instead of a full "service" URL.
+    $req_params['restapi'] = 1;
+
+    if(!isset($requestUri[4]) || $requestUri[4] === ''){
+        $system->errorExitApi('Lookup service is not defined', HEURIST_INVALID_REQUEST);
+    }
+
+    $req_params['serviceType'] = (string)$requestUri[4];
+    if(isset($requestUri[5]) && $requestUri[5] !== ''){
+        $req_params['metadata'] = (string)$requestUri[5];
+    }
+    // api.php's generic JSON handler temporarily places the whole body in
+    // fields; that key has no meaning for lookups.
+    unset($req_params['fields']);
+
+    define('HEURIST_LOOKUP_API', 1);
+    require_once dirname(__FILE__).'/LookupController.php';
+
+    $lookupHandler = new \hserv\controller\LookupController($system, $req_params);
+    if(isset($req_params['value'])){
+        $lookupHandler->applyDirectValueLookup($req_params['serviceType'], $req_params['value']);
+    }
+
+    if($lookupHandler->init() && $lookupHandler->execute()){
+        $lookupHandler->output(false); // prints and exits
+    }else{
+        $system->errorExitApi();
+    }
+
 }elseif($is_system_query){
 
     $req_params['restapi'] = 1;
@@ -586,6 +745,16 @@ if($is_def_query){
         ? (string)$requestUri[4] : null;
     $systemId = isset($requestUri[5]) && $requestUri[5] !== ''
         ? intval($requestUri[5]) : null;
+
+    if($is_filter_write){
+        // POST/PUT/DELETE /api/{db}/sys/filter - saved-filter writes,
+        // see apiSavedFilterWrite() at the bottom of this file
+        apiSavedFilterWrite($system, $http_method, $systemId, $req_params,
+            is_array($json) ? $json : null);
+        $system->dbclose();
+        exit;
+    }
+
     $controller = ServiceFactory::fromLegacySystem($system)->systemQueryController();
     $controller->output($req_params, $systemType, $systemId);
     $system->dbclose();
@@ -836,7 +1005,7 @@ else
     }
 
     if($req_params['entity']=='Records'){
-        $isRecordQueryRequest = !isset($requestUri[4]);
+        $isRecordQueryRequest = !isset($requestUri[4]) && !$is_record_add_body;
 
         if($isRecordQueryRequest){
             // POST /records uses a read contract, not the generic entity-write
@@ -853,6 +1022,49 @@ else
             $controller->output($req_params);
             $system->dbclose();
             exit;
+        }
+
+        if($is_record_write){
+            // Record CUD via the record_edit.php functions (a=add|save|delete):
+            //   POST /records or /records/add, PUT/PATCH/POST /records/{id},
+            //   DELETE /records/{id}
+            set_time_limit(120);
+            require_once dirname(__FILE__).'/../records/edit/recordModify.php';
+
+            $record = $req_params;
+            foreach(array('a','entity','restapi','recID','fields','query','q','ids',
+                'detail','resolveDetails','limit','offset','sort','filter','rules','debug') as $internalKey){
+                unset($record[$internalKey]);
+            }
+            if(isset($json['fields']) && is_array($json['fields'])){
+                // an explicit fields object wins over the generic body copy
+                $record = array_merge($record, $json['fields']);
+            }
+
+            $is_add = ($is_record_add_body || @$requestUri[4] === 'add');
+
+            if($http_method === 'DELETE'){
+
+                $response = recordDelete($system, $requestUri[4], true,
+                    @$req_params['check_links'], @$req_params['rec_RecTypeID'], @$req_params['session']);
+
+            }elseif($is_add){
+
+                // return_id_only=true - the API returns the new record id;
+                // clients retrieve the full record via GET /records/{id}
+                $response = recordAdd($system, $record, true);
+
+            }else{
+                // route id wins over the body for item saves
+                $record['ID'] = intval($requestUri[4]);
+                $response = recordSave($system, $record);
+            }
+
+            if($response === false || !is_array($response) || @$response['status'] !== HEURIST_OK){
+                $system->errorExitApi();
+            }
+
+            apiWriteResponse($response, $is_add ? 201 : 200);
         }
 
         if($method=='search'){
@@ -972,6 +1184,122 @@ function exitWithError($message, $code, $headers = array(), $error_code = null){
         'error' => $error_code,
         'message' => $message
     ));
+    exit;
+}
+
+/**
+ * Handles saved-filter (usrSavedSearches) write requests for /api/{db}/sys/filter.
+ *
+ * Wraps the legacy functions of dbsSavedSearches.php (svsSave, svsDelete,
+ * svsGetByIds) with the modern API envelopes:
+ *
+ *   POST   /api/{db}/sys/filter        insert (svs_Name and svs_Query required,
+ *                                      svs_ID in the body updates that filter)
+ *   PUT    /api/{db}/sys/filter/{id}   update (PATCH accepted as alias, the
+ *                                      route id wins over the body svs_ID)
+ *   DELETE /api/{db}/sys/filter/{id}   delete
+ *
+ * The filter payload is the JSON body or the request parameters, with the
+ * fields {svs_ID, svs_Name, svs_Query, svs_UGrpID}. The current user must be
+ * a member of the owning group (svsSave) or its administrator (svsDelete).
+ *
+ * @param hserv\System $system Initialized system object.
+ * @param string $http_method Normalized HTTP verb (POST, PUT or DELETE).
+ * @param int|null $filterId Saved-search id from the route, if any.
+ * @param array $req_params Sanitized request parameters.
+ * @param array|null $json Decoded JSON request body, if any.
+ * @return void This function exits.
+ */
+function apiSavedFilterWrite($system, $http_method, $filterId, $req_params, $json){
+
+    require_once dirname(__FILE__).'/../structure/dbsSavedSearches.php';
+
+    if($http_method === 'DELETE'){
+
+        $response = svsDelete($system, $filterId, @$req_params['UGrpID']);
+
+        if($response === false){
+            $system->errorExitApi();
+        }
+
+        apiWriteResponse($response, 200);
+    }
+
+    $filter = $req_params;
+    if(is_array($json)){
+        if(!array_key_exists('fields', $json)){
+            // api.php's generic JSON handler temporarily places the whole body
+            // in fields; that key has no meaning for filters
+            unset($filter['fields']);
+        }
+    }else{
+        unset($filter['fields']);
+    }
+    // The mobile client posts {name, query, rty}; the legacy usr_info.php
+    // a=svs_save action uses the svs_ prefixed names. Map before the
+    // internal-key cleanup below, which removes 'query'.
+    if(!isset($filter['svs_Name']) && isset($filter['name'])){
+        $filter['svs_Name'] = $filter['name'];
+    }
+    if(!isset($filter['svs_Query']) && isset($filter['query'])){
+        $filter['svs_Query'] = $filter['query'];
+    }
+    foreach(array('a','entity','restapi','query','q','name','ids','detail','resolveDetails','rules','limit','offset','sort','filter','debug') as $internalKey){
+        unset($filter[$internalKey]);
+    }
+
+    $is_update = ($filterId !== null);
+
+    if($is_update){
+        // route id wins over the body; keep the owner group of the existing
+        // filter so that svsSave verifies the current user's membership
+        $existing = svsGetByIds($system, $filterId);
+        if($existing === false || !isset($existing[$filterId])){
+            $system->errorExitApi('Saved filter not found', HEURIST_NOT_FOUND);
+        }
+        $filter['svs_ID'] = $filterId;
+        if(!isset($filter['svs_UGrpID'])){
+            $filter['svs_UGrpID'] = $existing[$filterId][2];
+        }
+    }
+
+    // same input sanitization as the legacy usr_info.php a=svs_save action
+    USanitize::stripScriptTagInRequest($filter);
+
+    $svsId = svsSave($system, $filter);
+
+    if($svsId === false || $svsId === null || intval($svsId) < 1){
+        $system->errorExitApi();
+    }
+
+    $data = array('svs_ID' => intval($svsId));
+    $saved = svsGetByIds($system, $svsId);
+    if(is_array($saved) && isset($saved[intval($svsId)])){
+        $row = $saved[intval($svsId)];
+        $data = array(
+            'svs_ID' => intval($svsId),
+            'svs_Name' => $row[0],
+            'svs_Query' => $row[1],
+            'svs_UGrpID' => $row[2]
+        );
+    }
+
+    apiWriteResponse(array('status' => HEURIST_OK, 'data' => $data),
+        $is_update ? 200 : 201);
+}
+
+/**
+ * Outputs a JSON write response and exits the script.
+ *
+ * @param array $response Legacy {status: HEURIST_OK, data: ...} response.
+ * @param int $code The HTTP status code (201 for creates, 200 otherwise).
+ * @return void
+ */
+function apiWriteResponse($response, $code){
+    header(HEADER_CORS_POLICY);
+    header(CTYPE_JSON);
+    http_response_code($code);
+    print json_encode($response, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     exit;
 }
 

@@ -217,6 +217,7 @@ $parentIni = dirname(__FILE__) . "/../heuristConfigIni.php";
 //configuration for JWT authentication
 $jwt_Secret = ''; //change to some long random secret string (8 chars min)
 $jwt_TTL    = 600; // 10 minutes
+$jwt_TTL_Mobile = 0; // optional longer token lifetime in seconds for mobile clients requesting refresh with "mobile": true; 0 = use 24h default
 
 /* Use the parameters above for JWT authentication
  curl -sS -X POST https://your.api.example/auth.php -H "Content-Type: application/json" -d '{"db":"database name", "username":"your login","password":"your password"}'

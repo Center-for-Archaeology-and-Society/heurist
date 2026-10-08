@@ -27,6 +27,43 @@ $username = $in['username'] ?? null;
 $password = $in['password'] ?? null;
 $database = $in['db'] ?? null;
 
+if(($in['action'] ?? @$_REQUEST['action']) === 'refresh'){
+    // Token renewal (mobile clients): a valid, still-unexpired Bearer token is
+    // exchanged for a fresh one. No database session or credentials required.
+    $auth = UJwt::get_auth_header();
+    if(!$auth || !preg_match('/^Bearer\s+(.+)$/i', $auth, $refresh_matches)){
+        UJwt::json_out(401, ['status'=>401, 'error'=>HEURIST_REQUEST_DENIED, 'message'=>'Bearer token is required'], ['WWW-Authenticate' => 'Bearer realm="api", error="invalid_request"']);
+    }
+
+    $payload = UJwt::jwt_verify($refresh_matches[1], $jwt_Secret);
+    if($payload === false || empty($payload['sub'])){
+        UJwt::json_out(401, ['status'=>401, 'error'=>HEURIST_REQUEST_DENIED, 'message'=>'Invalid or expired token'], ['WWW-Authenticate' => 'Bearer realm="api", error="invalid_token"']);
+    }
+
+    // Mobile clients may be issued a longer lived token, see the
+    // $jwt_TTL_Mobile flag in heuristConfigIni.php (24h default)
+    if(!empty($in['mobile']) || ($in['client'] ?? '') === 'mobile'){
+        $ttl = (isset($jwt_TTL_Mobile) && intval($jwt_TTL_Mobile) > 0) ? intval($jwt_TTL_Mobile) : 86400;
+    }else{
+        $ttl = ($jwt_TTL ?? 600);
+    }
+
+    $now = time();
+    $claims = [
+        'sub' => $payload['sub'],
+        'iat' => $now,
+        'nbf' => $now,
+        'exp' => $now + $ttl,
+        'scope' => $payload['scope'] ?? 'read:data'
+    ];
+
+    UJwt::json_out(200, [
+        'access_token' => UJwt::jwt_create($claims, $jwt_Secret),
+        'token_type'   => 'Bearer',
+        'expires_in'   => $ttl
+    ]);
+}
+
 $system = new hserv\System();
 if( !isset($database) || !$system->init($database) ){
     //$system->errorExitApi();

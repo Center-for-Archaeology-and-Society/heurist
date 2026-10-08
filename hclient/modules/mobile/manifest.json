@@ -1,0 +1,19 @@
+{
+  "name": "Heurist",
+  "short_name": "Heurist",
+  "description": "Heurist mobile companion: search, map, filters and record editing",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#1a5276",
+  "background_color": "#f4f6f8",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -210,6 +210,63 @@ class LookupController{
         return $this->setupRequest() && $this->setupSystem() && $this->verifyRequestParameters();
     }
 
+    /**
+     * Prepares a simplified modern-API lookup request where the caller supplies
+     * only the search value instead of the full legacy "service" URL. Maps the
+     * value to the primary request parameter of the service and derives the
+     * service URL from the known base URLs. Has no effect when the caller
+     * already provides "service" or "metadata".
+     *
+     * Must be called before init(), as it amends the request parameters that
+     * setupRequest() validates.
+     *
+     * @param string $serviceType The lookup service type (key of serviceURLs).
+     * @param mixed $value The search value (e.g. an ISBN, placename or identifier).
+     * @return void
+     */
+    public function applyDirectValueLookup(string $serviceType, $value) : void{
+
+        if($value === null || $value === ''
+            || !empty($this->request['service']) || !empty($this->request['metadata'])
+            || !array_key_exists($serviceType, $this->serviceURLs)){
+            return;
+        }
+
+        if(array_key_exists($serviceType, self::LOOKUP_NO_QUERY)){ // URL template, e.g. orcid
+            $this->request[key(self::LOOKUP_NO_QUERY[$serviceType])] = $value;
+            return;
+        }
+
+        $primaryParam = match($serviceType){
+            'tlcmap' => 'name',
+            'nomisma' => 'id',
+            'bnflibrary_bib', 'bnf_recdump', 'wikidata_SPARQL' => 'query',
+            'geonames', 'nakala', 'nakala_author', 'opentheso' => 'q',
+            default => null
+        };
+
+        if($primaryParam === null){
+            return;
+        }
+
+        $baseURL = $this->serviceURLs[$serviceType];
+        if(is_array($baseURL)){
+            $baseURL = reset($baseURL);
+        }
+        if(!is_string($baseURL) || $baseURL === ''){
+            return;
+        }
+
+        $separator = '';
+        if(substr($baseURL, -1) !== '?' && substr($baseURL, -1) !== '&'){
+            $separator = strpos($baseURL, '?') === false ? '?' : '&';
+        }
+
+        $this->lookupURL = $baseURL.$separator.$primaryParam.'='.rawurlencode((string)$value);
+        $this->request['service'] = $this->lookupURL;
+        $this->request[$primaryParam] = $value;
+    }
+
     private function setupSystem() : bool{
 
         if($this->system->getUserId() < 1 && !$this->isPublicLookup){
@@ -2349,6 +2406,14 @@ class LookupController{
         $this->system->addError(HEURIST_ACTION_BLOCKED, 'ESTC Request not implemented');
         return false;
     }
+}
+
+// Direct entry point only. When included from api.php for the modern
+// /api/{db}/lookup/{service} route, the including context owns System
+// initialization, authentication (Bearer or session) and error output,
+// so the legacy procedural dispatch below must not run.
+if(defined('HEURIST_LOOKUP_API')){
+    return;
 }
 
 $params = USanitize::sanitizeInputArray();
