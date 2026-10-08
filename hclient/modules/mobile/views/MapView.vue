@@ -2,7 +2,7 @@
   <div class="page">
     <PageHeader :title="title" back>
       <template #actions>
-        <button class="map-action" type="button" aria-label="Refresh map" @click="refetchNow">⟳</button>
+        <button class="map-action" type="button" aria-label="Refresh map" @click="refetchNow"><AppIcon name="refresh" /></button>
       </template>
     </PageHeader>
 
@@ -91,6 +91,8 @@ let shapes = []
 let debouncedRefetch = null
 let lastExtent = null
 let fetchSeq = 0
+let fetchController = null
+let disposed = false
 
 function toQuery() {
   if (route.query.q) {
@@ -145,6 +147,9 @@ async function refetchNow() {
     return
   }
   const seq = ++fetchSeq
+  fetchController?.abort()
+  const controller = new AbortController()
+  fetchController = controller
   loading.value = true
   status.value = 'idle'
   errorMessage.value = ''
@@ -156,7 +161,7 @@ async function refetchNow() {
       payload.extent = extent
       lastExtent = extent
     }
-    const result = await fetchMapFeatures(payload)
+    const result = await fetchMapFeatures({ ...payload, signal: controller.signal })
     if (seq !== fetchSeq) {
       return
     }
@@ -184,7 +189,7 @@ async function refetchNow() {
     sheet.value = null
     renderFeatures()
   } catch (error) {
-    if (seq !== fetchSeq) {
+    if (error.name === 'AbortError' || seq !== fetchSeq) {
       return
     }
     status.value = 'error'
@@ -193,6 +198,7 @@ async function refetchNow() {
   } finally {
     if (seq === fetchSeq) {
       loading.value = false
+      fetchController = null
     }
   }
 }
@@ -291,6 +297,7 @@ async function render() {
     return
   }
   const L = await loadLeaflet()
+  if (disposed || !mapEl.value) return
   map = L.map(mapEl.value, { tap: true }).setView([-30, 135], 3)
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors',
@@ -299,11 +306,12 @@ async function render() {
   layerGroup = L.layerGroup().addTo(map)
   map.on('moveend', scheduleRefetch)
   map.on('zoomend', renderFeatures)
-  await definitions.load(auth.state.db).catch(() => {})
+  definitions.load(auth.state.db).catch(() => {})
   await refetchNow()
 }
 
 function onResize() {
+  map?.invalidateSize()
   renderFeatures()
 }
 
@@ -317,6 +325,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  disposed = true
+  fetchController?.abort()
   clearTimeout(debouncedRefetch)
   window.removeEventListener('resize', onResize)
   fetchSeq++

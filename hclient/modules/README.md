@@ -77,3 +77,9 @@ Record cards and details load each database's record-type icon through the same
 `fileGet.php` endpoint as desktop, falling back to a document icon on failure.
 Mobile tap targets remain at least 44px and browser zoom is enabled. Rebuild with
 `npm run build --prefix hclient/modules/mobile` to deploy theme or asset changes.
+
+Map requests abort when replaced or when leaving the view, and feature loading
+runs independently of the definitions snapshot. Unsuffixed geographic queries
+use the detail-type index by restricting to geo definitions. Verify geographic
+matching and visibility with the CLI-only temporary-table regression:
+`php admin/verification/testGeoPredicates.php <database>`.

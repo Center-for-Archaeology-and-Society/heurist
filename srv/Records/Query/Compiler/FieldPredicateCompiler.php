@@ -294,7 +294,10 @@ final class FieldPredicateCompiler
     public function geoCondition(string $suffix, $value, SqlBuildContext $state, string $recordAlias = 'r'): string
     {
         list($fieldId, $mode) = self::geoSuffixParts($suffix);
-        $fieldSql = '';
+        // Restrict unsuffixed geo predicates to geographic definitions so the
+        // detail-type index can drive the search. Otherwise MySQL scans every
+        // record and probes all its details, even when very few contain geometry.
+        $fieldSql = " AND gd.dtl_DetailTypeID IN (SELECT dty_ID FROM defDetailTypes WHERE dty_Type='geo')";
         if($fieldId !== null){
             $state->bind($fieldId, 'i');
             $fieldSql = ' AND gd.dtl_DetailTypeID=?';
