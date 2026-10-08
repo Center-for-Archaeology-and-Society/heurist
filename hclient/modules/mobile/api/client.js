@@ -13,7 +13,7 @@ export class ApiError extends Error {
 export { serverRoot }
 
 export function apiUrl(db, path, query) {
-  const url = new URL(serverRoot() + 'api/' + encodeURIComponent(db) + '/' + String(path).replace(/^\//, ''))
+  const url = new URL(serverRoot() + 'api/' + encodeURIComponent(db) + '/' + String(path).replace(/^\//, ''), window.location.origin)
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== null && value !== '') {
